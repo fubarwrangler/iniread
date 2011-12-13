@@ -31,6 +31,7 @@
  *	@section:	a section heading to look for a match in
  *	@key:		the key whose value we'll fetch under @section
  *
+ *
  * Returns: error indicator, set to INI_FOUND if success (also value != NULL)
  *
  * Returns the appropriate code in the following cases:
@@ -40,6 +41,6 @@
  * 	INI_IOERROR		Error opening / reading from *fname
  *	INI_NOMEM		Memory for the found buffer not found
  */
-int ini_read_value(char *value, char *fname, char *section, char *key);
+char *ini_read_value(char *fname, char *section, char *key, int *e);
 
 #endif

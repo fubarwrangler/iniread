@@ -85,9 +85,9 @@ char *get_value(char *str, char *key)
 		p += strspn(p, " \t");
 
 		/* Next had better be the seperator, and we advance p */
-		if(*p != '=' && *p++ != ':')
+		if(*p != '=' && *p != ':')
 			return NULL;
-
+        p++;
 		p += strspn(p, " \t");
 		return p;
 	}
@@ -95,7 +95,7 @@ char *get_value(char *str, char *key)
 }
 
 
-char *read_iniline(FILE *fp, int *err)
+char *ini_readline(FILE *fp, int *err)
 {
 	char line_buf[INIREAD_LINEBUF];
 	size_t buflen = 0, real_len = 0;
@@ -118,18 +118,24 @@ char *read_iniline(FILE *fp, int *err)
 
 		if(eol == '\\' || linecont)	{
 			linecont = 1;
-			*(line_buf + buflen - 2) = '\n';
-			*(line_buf + buflen - 1) = '\0';
-			//buflen -= 2;
+			line_buf[buflen - 2] = '\n';
+			line_buf[buflen - 1] = '\0';
+			if(buflen >= 3)	{
+				if(eol == '\\' && line_buf[buflen - 3] == '\\')	{
+					goto single_line;
+				}
+			}
 			real_line = realloc(real_line, buflen + real_len);
 			if(real_line == NULL)	{
 				fputs("Error: realloc() failed\n", stderr);
 				*err = INI_NOMEM;
+				break;
 			}
 			strncat(real_line, line_buf, buflen);
 			if(eol != '\\')
 				break;
 		} else {
+			single_line:
 			if((real_line = malloc(buflen + 1)) == NULL)	{
 				fputs("Error: malloc() failed\n", stderr);
 				*err = INI_NOMEM;
@@ -148,27 +154,26 @@ char *read_iniline(FILE *fp, int *err)
  * for the value associated with that key in that section of the .ini-
  * formatted file.  See header for more.
  */
-int ini_read_value(char *value, char *fname, char *section, char *key)
+char *ini_read_value(char *fname, char *section, char *key, int *e)
 {
 	FILE *fp = NULL;
 	char *p, *sec;
+	char *line_buf = NULL, *value = NULL;
 	int err;
 
-	value = NULL;
+	*e = INI_IOERROR;
 
 	if((fp = fopen(fname, "r")) != NULL)	{
 		int in_section = 0;
 
 		/* file opened, assume no section */
-		err = INI_NOSECTION;
-		while(fgets(line_buf, INIREAD_LINEBUF, fp) != NULL)	{
-			buflen = strlen(line_buf);
+		*e = INI_NOSECTION;
+		while(1)	{
 
-			if(*(line_buf + buflen - 1) != '\n')	{
-				fprintf(stderr, "Error: Line too long for iniread found\n");
-				err = INI_IOERROR;
+			if(line_buf != NULL)
+				free(line_buf);
+			if((line_buf = ini_readline(fp, &err)) == NULL)
 				break;
-			}
 
 			if((p = prepare_line(line_buf)) == NULL)
 				continue;
@@ -183,25 +188,28 @@ int ini_read_value(char *value, char *fname, char *section, char *key)
 
 				if(strcmp(section, sec) == 0)	{
 					/* section found, assume no key */
-					err = INI_NOKEY;
+					*e = INI_NOKEY;
 					in_section = 1;
 				}
 			}
 			if(in_section)	{
 				if((p = get_value(p, key)) != NULL)	{
 					/* found it */
-					if((value = strdup(p)) == NULL)	{
-						err = INI_NOMEM;
-					}
+					value = strdup(p);
+					if(value == NULL)
+						*e = INI_NOMEM;
+					//else
+						//puts(*value);
 					err = INI_FOUND;
 					break;
 				}
 			}
 		}
 		fclose(fp);
-		return err;
+		if(line_buf != NULL)
+			free(line_buf);
 	} else	{
 		fprintf(stderr, "Error: cannot read config file: %s\n", fname);
-		return INI_IOERROR;
 	}
+	return value;
 }
