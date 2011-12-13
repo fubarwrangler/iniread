@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 #include "iniread.h"
 
@@ -9,7 +10,7 @@
  */
 char *prepare_line(char *raw)
 {
-	int l_white = 0, r_white = 0;
+	size_t l_white = 0, r_white = 0;
 	size_t len;
 	char *p;
 
@@ -31,7 +32,7 @@ char *prepare_line(char *raw)
 	}
 
 	/* Move the non-whitespace part to the begenning of the string */
-	if(l_white || r_white)
+	if(l_white + r_white > 0)
 		memmove(raw, (raw + l_white), len - (l_white + r_white));
 
 	/* Skip comments and blank lines */
@@ -65,6 +66,11 @@ char *is_section(char *str)
 	return NULL;
 }
 
+char *is_value(char *str)
+{
+	return NULL;
+}
+
 /* Return a pointer into *str that contins just the value: from after
  * the first word and the first occurance of '=' or ':' till the end.
  */
@@ -73,7 +79,7 @@ char *get_value(char *str, char *key)
 	char *p = NULL;
 	size_t klen = strlen(key);
 
-	if(!strncmp(key, str, klen))	{
+	if(strncmp(key, str, klen) == 0)	{
 
 		p = str + klen;
 		p += strspn(p, " \t");
@@ -89,29 +95,81 @@ char *get_value(char *str, char *key)
 }
 
 
+char *read_iniline(FILE *fp, int *err)
+{
+	char line_buf[INIREAD_LINEBUF];
+	size_t buflen = 0, real_len = 0;
+	char *real_line = NULL;
+	char eol, linecont = 0;
+
+
+	assert(fp != NULL);
+
+	while(fgets(line_buf, INIREAD_LINEBUF, fp) != NULL)	{
+		buflen = strlen(line_buf);
+
+
+		if(*(line_buf + buflen - 1) != '\n')	{
+			fputs("Error: Line too long for iniread found\n", stderr);
+			*err = INI_IOERROR;
+			break;
+		}
+		eol = (buflen < 2) ? 0 : *(line_buf + buflen - 2);
+
+		if(eol == '\\' || linecont)	{
+			linecont = 1;
+			*(line_buf + buflen - 2) = '\n';
+			*(line_buf + buflen - 1) = '\0';
+			//buflen -= 2;
+			real_line = realloc(real_line, buflen + real_len);
+			if(real_line == NULL)	{
+				fputs("Error: realloc() failed\n", stderr);
+				*err = INI_NOMEM;
+			}
+			strncat(real_line, line_buf, buflen);
+			if(eol != '\\')
+				break;
+		} else {
+			if((real_line = malloc(buflen + 1)) == NULL)	{
+				fputs("Error: malloc() failed\n", stderr);
+				*err = INI_NOMEM;
+			} else {
+				memmove(real_line, line_buf, buflen + 1);
+			}
+			break;
+		}
+		real_len = linecont ? real_len + buflen : buflen;
+
+	}
+	return real_line;
+}
+
 /* Public function: takes a filename, a section, and a key, and searches
  * for the value associated with that key in that section of the .ini-
  * formatted file.  See header for more.
  */
-char *ini_read_value(char *fname, char *section, char *key, int *err)
+int ini_read_value(char *value, char *fname, char *section, char *key)
 {
 	FILE *fp = NULL;
-	char *p, *sec, *val = NULL;
+	char *p, *sec;
+	int err;
 
-	/* Assume the worst */
-	*err = INI_IOERROR;
+	value = NULL;
 
 	if((fp = fopen(fname, "r")) != NULL)	{
 		int in_section = 0;
-		char line_buf[1024];
 
 		/* file opened, assume no section */
-		*err = INI_NOSECTION;
-		while(fgets(line_buf, 1024, fp) != NULL)	{
-			if(*(line_buf + strlen(line_buf) - 1) != '\n')	{
-				fprintf(stderr, "Warning: Extremely long line found in %s\n", fname);
-				continue;
+		err = INI_NOSECTION;
+		while(fgets(line_buf, INIREAD_LINEBUF, fp) != NULL)	{
+			buflen = strlen(line_buf);
+
+			if(*(line_buf + buflen - 1) != '\n')	{
+				fprintf(stderr, "Error: Line too long for iniread found\n");
+				err = INI_IOERROR;
+				break;
 			}
+
 			if((p = prepare_line(line_buf)) == NULL)
 				continue;
 
@@ -123,24 +181,27 @@ char *ini_read_value(char *fname, char *section, char *key, int *err)
 				if(in_section)
 					break;
 
-				if(!strcmp(section, sec))	{
+				if(strcmp(section, sec) == 0)	{
 					/* section found, assume no key */
-					*err = INI_NOKEY;
+					err = INI_NOKEY;
 					in_section = 1;
 				}
 			}
 			if(in_section)	{
 				if((p = get_value(p, key)) != NULL)	{
 					/* found it */
-					*err = INI_FOUND;
-					val = strdup(p);
+					if((value = strdup(p)) == NULL)	{
+						err = INI_NOMEM;
+					}
+					err = INI_FOUND;
 					break;
 				}
 			}
 		}
 		fclose(fp);
+		return err;
 	} else	{
 		fprintf(stderr, "Error: cannot read config file: %s\n", fname);
+		return INI_IOERROR;
 	}
-	return val;
 }

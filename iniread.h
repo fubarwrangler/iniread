@@ -14,29 +14,32 @@
  *	|	# above, key2 = 'value', all whitespace before & after stripped
  */
 
-#ifndef _INIREAD_H
-#define _INIREAD_H
+#ifndef INIREAD_H__
+#define INIREAD_H__
 
 #define INI_FOUND		0
 #define INI_NOSECTION	1
 #define INI_NOKEY		2
 #define INI_IOERROR		3
+#define INI_NOMEM		4
+
+#define INIREAD_LINEBUF	2048
 
 /* ini_read_value() -- read a value given a key and section of an .ini file
+ *	@value:		storage that will be allocated for and hold the value
  *	@fname:		filename to try to open
  *	@section:	a section heading to look for a match in
  *	@key:		the key whose value we'll fetch under @section
- *	@err:		int that will be set to the one of error code listed above
- *				if something goes wrong, see below for details.
  *
- * Returns: pointer to dynamically allocated value if found, else NULL
+ * Returns: error indicator, set to INI_FOUND if success (also value != NULL)
  *
- * Sets *err to an appropriate code in the following cases:
- *	INI_FOUND		Everything went OK and a value was returned
+ * Returns the appropriate code in the following cases:
+ *	INI_FOUND		Everything went OK and a value was stored
  * 	INI_NOSECTION	Section cannot be found
  * 	INI_NOKEY		Section found but key isn't in it.
  * 	INI_IOERROR		Error opening / reading from *fname
+ *	INI_NOMEM		Memory for the found buffer not found
  */
-char *ini_read_value(char *fname, char *section, char *key, int *err);
+int ini_read_value(char *value, char *fname, char *section, char *key);
 
 #endif

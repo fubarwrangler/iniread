@@ -13,8 +13,8 @@ int main(int argc, char *argv[])
 		printf("Error, %s file section key\n", argv[0]);
 		return 1;
 	}
-	v = ini_read_value(argv[1], argv[2], argv[3], &e);
-	printf("%d: %s\n", e, v);
+	e = ini_read_value(v, argv[1], argv[2], argv[3]);
+	printf("%d: '%s'\n", e, v);
 	free(v);
 	return 0;
 }
