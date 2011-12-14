@@ -1,14 +1,8 @@
 CC=gcc
-CFLAGS=-Wall -O2
-LDFLAGS=
+CFLAGS=-Wall -g
 
-all: test
-
-test: iniread.o initest.o
-	$(CC) $(LDFLAGS) -o test $?
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c $?
+test: iniread.c initest.c
+	$(CC) $(CFLAGS) -o test $^
 
 clean:
 	rm -f *.o test

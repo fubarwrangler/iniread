@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <errno.h>
 
 #include "iniread.h"
 
@@ -105,47 +106,37 @@ char *ini_readline(FILE *fp, int *err)
 
 	assert(fp != NULL);
 
-	while(fgets(line_buf, INIREAD_LINEBUF, fp) != NULL)	{
-		buflen = strlen(line_buf);
+	
+	if(fgets(line_buf, INIREAD_LINEBUF, fp) == NULL)
+		return NULL;
+	buflen = strlen(line_buf);
+	if((real_line = malloc(buflen + 1)) == NULL)	{
+		fputs("Error: malloc() failed\n", stderr);
+		*err = INI_NOMEM;
+		return NULL;
+	} else {
+		memmove(real_line, line_buf, buflen + 1);
+	}
+	printf("%d: %s", buflen, line_buf);
+	if(buflen >= 2 && line_buf[buflen - 2] == '\\')	{
+		size_t new_buflen = 0, cumlen = buflen;
 
-
-		if(*(line_buf + buflen - 1) != '\n')	{
-			fputs("Error: Line too long for iniread found\n", stderr);
-			*err = INI_IOERROR;
-			break;
-		}
-		eol = (buflen < 2) ? 0 : *(line_buf + buflen - 2);
-
-		if(eol == '\\' || linecont)	{
-			linecont = 1;
-			line_buf[buflen - 2] = '\n';
-			line_buf[buflen - 1] = '\0';
-			if(buflen >= 3)	{
-				if(eol == '\\' && line_buf[buflen - 3] == '\\')	{
-					goto single_line;
-				}
-			}
-			real_line = realloc(real_line, buflen + real_len);
-			if(real_line == NULL)	{
+		while(fgets(line_buf, INIREAD_LINEBUF, fp) != NULL)	{
+			new_buflen = strlen(line_buf);
+			printf("IN! %d (/%d): %s", new_buflen, cumlen, line_buf);
+			errno = 0;
+			real_line = realloc(real_line, cumlen + new_buflen + 1);
+			if(errno == ENOMEM)	{
 				fputs("Error: realloc() failed\n", stderr);
 				*err = INI_NOMEM;
-				break;
+				free(real_line);
+				return NULL;
 			}
-			strncat(real_line, line_buf, buflen);
-			if(eol != '\\')
+			memmove(real_line + cumlen, line_buf, new_buflen);
+			if(new_buflen < 2 || line_buf[new_buflen - 2] != '\\')
 				break;
-		} else {
-			single_line:
-			if((real_line = malloc(buflen + 1)) == NULL)	{
-				fputs("Error: malloc() failed\n", stderr);
-				*err = INI_NOMEM;
-			} else {
-				memmove(real_line, line_buf, buflen + 1);
-			}
-			break;
+			cumlen += new_buflen - 1;
 		}
-		real_len = linecont ? real_len + buflen : buflen;
-
 	}
 	return real_line;
 }
@@ -172,7 +163,7 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 
 			if(line_buf != NULL)
 				free(line_buf);
-			if((line_buf = ini_readline(fp, &err)) == NULL)
+			if((line_buf = ini_readline(fp, e)) == NULL)
 				break;
 
 			if((p = prepare_line(line_buf)) == NULL)
