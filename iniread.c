@@ -15,26 +15,29 @@ char *prepare_line(char *raw)
 	size_t len;
 	char *p;
 
-	/* How many whitespace chars start the string? */
-	l_white = strspn(raw, "\t ");
 	len = strlen(raw);
 
-	/* Find out about and strip off any trailing whitespace */
-	if(len >= 2 && l_white < len - 1)	{
-		p = raw + len - 2;
-		while(p != raw)	{
-			if(*p == '\t' || *p == ' ')
-				r_white++;
-			else
-				break;
-			p--;
-		}
-		*(raw + len - (1 + r_white)) = '\0';
-	}
+	if(len > 1)	{
+		/* How many whitespace chars start the string? */
+		l_white = strspn(raw, "\t ");
 
-	/* Move the non-whitespace part to the begenning of the string */
-	if(l_white + r_white > 0)
-		memmove(raw, (raw + l_white), len - (l_white + r_white));
+		/* Find out about and strip off any trailing whitespace */
+		if(len >= 2 && l_white < len - 1)	{
+			p = raw + len - 2;
+			while(p != raw)	{
+				if(*p == '\t' || *p == ' ')
+					r_white++;
+				else
+					break;
+				p--;
+			}
+			*(raw + len - (1 + r_white)) = '\0';
+		}
+
+		/* Move the non-whitespace part to the begenning of the string */
+		if(l_white + r_white > 0)
+			memmove(raw, (raw + l_white), len - (l_white + r_white));
+	}
 
 	/* Skip comments and blank lines */
 	return (*raw == '#' || *raw == ';' || len < l_white + 2) ? NULL : raw;
@@ -99,13 +102,10 @@ char *get_value(char *str, char *key)
 char *ini_readline(FILE *fp, int *err)
 {
 	char line_buf[INIREAD_LINEBUF];
-	size_t buflen = 0, real_len = 0;
 	char *real_line = NULL;
-	char eol, linecont = 0;
-
+	size_t buflen = 0;
 
 	assert(fp != NULL);
-
 	
 	if(fgets(line_buf, INIREAD_LINEBUF, fp) == NULL)
 		return NULL;
@@ -117,12 +117,16 @@ char *ini_readline(FILE *fp, int *err)
 	} else {
 		memmove(real_line, line_buf, buflen + 1);
 	}
+
 	printf("%d: %s", buflen, line_buf);
 	if(buflen >= 2 && line_buf[buflen - 2] == '\\')	{
 		size_t new_buflen = 0, cumlen = buflen;
+		char orig_eol = 0;
 
 		while(fgets(line_buf, INIREAD_LINEBUF, fp) != NULL)	{
 			new_buflen = strlen(line_buf);
+			orig_eol = (new_buflen > 1) ? line_buf[new_buflen - 2] : 0;
+
 			printf("IN! %d (/%d): %s", new_buflen, cumlen, line_buf);
 			errno = 0;
 			real_line = realloc(real_line, cumlen + new_buflen + 1);
@@ -132,10 +136,10 @@ char *ini_readline(FILE *fp, int *err)
 				free(real_line);
 				return NULL;
 			}
-			memmove(real_line + cumlen, line_buf, new_buflen);
-			if(new_buflen < 2 || line_buf[new_buflen - 2] != '\\')
+			memmove(real_line + cumlen - 2, line_buf, new_buflen);
+			if(orig_eol != '\\')
 				break;
-			cumlen += new_buflen - 1;
+			cumlen += new_buflen - 2;
 		}
 	}
 	return real_line;
@@ -148,9 +152,8 @@ char *ini_readline(FILE *fp, int *err)
 char *ini_read_value(char *fname, char *section, char *key, int *e)
 {
 	FILE *fp = NULL;
-	char *p, *sec;
 	char *line_buf = NULL, *value = NULL;
-	int err;
+	char *p, *sec;
 
 	*e = INI_IOERROR;
 
@@ -160,9 +163,13 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 		/* file opened, assume no section */
 		*e = INI_NOSECTION;
 		while(1)	{
-
+			/* Second+ time around we free line_buf from prev time */
 			if(line_buf != NULL)
 				free(line_buf);
+
+			/* Read a line (combining ones that end in back-slash) into
+			 * heap storage -- MUST FREE
+			 */
 			if((line_buf = ini_readline(fp, e)) == NULL)
 				break;
 
@@ -191,7 +198,7 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 						*e = INI_NOMEM;
 					//else
 						//puts(*value);
-					err = INI_FOUND;
+					*e = INI_FOUND;
 					break;
 				}
 			}
