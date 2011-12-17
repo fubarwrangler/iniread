@@ -70,15 +70,19 @@ char *is_section(char *str)
 	return NULL;
 }
 
-char *is_value(char *str)
+int is_value(char *str)
 {
+	char *p = NULL;
+	p += strcspn(p, "=");
+	p += strspn(p, " \t");
+	puts(p);
 	return NULL;
 }
 
 /* Return a pointer into *str that contins just the value: from after
  * the first word and the first occurance of '=' or ':' till the end.
  */
-char *get_value(char *str, char *key)
+char *get_key_value(char *str, char *key)
 {
 	char *p = NULL;
 	size_t klen = strlen(key);
@@ -98,48 +102,80 @@ char *get_value(char *str, char *key)
 	return NULL;
 }
 
+/* Get number of contigous characters at the end of string all in @accept */
+int get_nend(char *str, char *accept)
+{
+	int n = 0;
+	char *p = str;
+
+	while(*p)	{
+		if(strchr(accept, *p++) != NULL)
+			n++;
+		else
+			n = 0;
+	}
+	return n;
+}
+
 
 char *ini_readline(FILE *fp, int *err)
 {
 	char line_buf[INIREAD_LINEBUF];
 	char *real_line = NULL;
 	size_t buflen = 0;
+	int n_endslash = 0;
 
 	assert(fp != NULL);
-	
+
 	if(fgets(line_buf, INIREAD_LINEBUF, fp) == NULL)
 		return NULL;
 	buflen = strlen(line_buf);
+	n_endslash = get_nend(line_buf, "\\\n") - 1;
 	if((real_line = malloc(buflen + 1)) == NULL)	{
 		fputs("Error: malloc() failed\n", stderr);
 		*err = INI_NOMEM;
 		return NULL;
 	} else {
-		memmove(real_line, line_buf, buflen + 1);
+		line_buf[buflen - (n_endslash / 2) - 1] = '\n';
+		line_buf[buflen - (n_endslash / 2)] = '\0';
+		memmove(real_line, line_buf, buflen - (n_endslash / 2) + 1);
+		printf("%d: %s", n_endslash, real_line);
+		
 	}
 
-	printf("%d: %s", buflen, line_buf);
-	if(buflen >= 2 && line_buf[buflen - 2] == '\\')	{
-		size_t new_buflen = 0, cumlen = buflen;
-		char orig_eol = 0;
+	if(n_endslash > 0 && n_endslash % 2 != 0)	{
+		size_t cumlen = buflen - 1;
+		char last = 0;
 
+		printf("%d: %s", buflen, line_buf);
 		while(fgets(line_buf, INIREAD_LINEBUF, fp) != NULL)	{
-			new_buflen = strlen(line_buf);
-			orig_eol = (new_buflen > 1) ? line_buf[new_buflen - 2] : 0;
+			
+			buflen = strlen(line_buf);
+			last = line_buf[buflen - 1];
 
-			printf("IN! %d (/%d): %s", new_buflen, cumlen, line_buf);
+			/* Escape trailing slashes */
+			n_endslash = get_nend(line_buf, "\\\n") - 1;
+
+
 			errno = 0;
-			real_line = realloc(real_line, cumlen + new_buflen + 1);
+			real_line = realloc(real_line, cumlen + buflen + 1);
 			if(errno == ENOMEM)	{
 				fputs("Error: realloc() failed\n", stderr);
 				*err = INI_NOMEM;
 				free(real_line);
 				return NULL;
 			}
-			memmove(real_line + cumlen - 2, line_buf, new_buflen);
-			if(orig_eol != '\\')
+			line_buf[buflen - (n_endslash / 2) - 1] = '\n';
+			line_buf[buflen - (n_endslash / 2)] = '\0';
+			
+			memmove(real_line + cumlen - (n_endslash / 2) - 1, line_buf, buflen - (n_endslash / 2));
+
+			/* Don't count backslash and newline */
+			cumlen += buflen - (n_endslash / 2) - 1;
+
+			/* If we end with \\, treat it as escaped */
+			if(n_endslash % 2 == 0)
 				break;
-			cumlen += new_buflen - 2;
 		}
 	}
 	return real_line;
@@ -191,7 +227,7 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 				}
 			}
 			if(in_section)	{
-				if((p = get_value(p, key)) != NULL)	{
+				if((p = get_key_value(p, key)) != NULL)	{
 					/* found it */
 					value = strdup(p);
 					if(value == NULL)
@@ -211,3 +247,4 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 	}
 	return value;
 }
+
