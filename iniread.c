@@ -127,59 +127,67 @@ char *ini_readline(FILE *fp, int *err)
 
 	assert(fp != NULL);
 
+	/* Read in first line */
 	if(fgets(line_buf, INIREAD_LINEBUF, fp) == NULL)
 		return NULL;
+
+	/* Check for trailing slash */
 	buflen = strlen(line_buf);
 	n_endslash = get_nend(line_buf, "\\\n") - 1;
+	
 	if((real_line = malloc(buflen + 1)) == NULL)	{
 		fputs("Error: malloc() failed\n", stderr);
 		*err = INI_NOMEM;
 		return NULL;
-	} else {
-		line_buf[buflen - (n_endslash / 2) - 1] = '\n';
-		line_buf[buflen - (n_endslash / 2)] = '\0';
-		memmove(real_line, line_buf, buflen - (n_endslash / 2) + 1);
-		printf("%d: %s", n_endslash, real_line);
-		
 	}
+	
+	/* Reterminate line if trailing backslashes are present */
+	line_buf[buflen - (n_endslash / 2) - 1] = '\n';
+	line_buf[buflen - (n_endslash / 2)] = '\0';
 
+	memmove(real_line, line_buf, buflen - (n_endslash / 2) + 1);
+
+	/* If number of trailing slashes is odd, it is a line continuation */
 	if(n_endslash > 0 && n_endslash % 2 != 0)	{
-		size_t cumlen = buflen - 1;
+		size_t cumlen = buflen - (n_endslash / 2) - 2;
 		char last = 0;
-
-		printf("%d: %s", buflen, line_buf);
+		
+		/* Read subsequent lines into an expanding buffer stopping when we
+		 * encounter a line ending in 0 or an even number of backslashes
+		 */
 		while(fgets(line_buf, INIREAD_LINEBUF, fp) != NULL)	{
-			
+
 			buflen = strlen(line_buf);
 			last = line_buf[buflen - 1];
 
-			/* Escape trailing slashes */
+			/* Count trailing slashes */
 			n_endslash = get_nend(line_buf, "\\\n") - 1;
 
-
 			errno = 0;
-			real_line = realloc(real_line, cumlen + buflen + 1);
+			real_line = realloc(real_line, cumlen + buflen + 2);
 			if(errno == ENOMEM)	{
 				fputs("Error: realloc() failed\n", stderr);
 				*err = INI_NOMEM;
 				free(real_line);
 				return NULL;
 			}
-			line_buf[buflen - (n_endslash / 2) - 1] = '\n';
-			line_buf[buflen - (n_endslash / 2)] = '\0';
 			
-			memmove(real_line + cumlen - (n_endslash / 2) - 1, line_buf, buflen - (n_endslash / 2));
+			memmove(real_line + cumlen, line_buf, buflen);
 
 			/* Don't count backslash and newline */
-			cumlen += buflen - (n_endslash / 2) - 1;
+			cumlen += buflen - (n_endslash / 2) - 2;
 
 			/* If we end with \\, treat it as escaped */
-			if(n_endslash % 2 == 0)
+			if(n_endslash % 2 == 0)	{
+				real_line[cumlen + 2] = '\0';
 				break;
+			}
 		}
 	}
 	return real_line;
 }
+
+
 
 /* Public function: takes a filename, a section, and a key, and searches
  * for the value associated with that key in that section of the .ini-
