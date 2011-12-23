@@ -6,42 +6,54 @@
 
 #include "iniread.h"
 
-/* Take a line from a config file, strip leading/trailing whitespace, skip
- * comments, and return the modified line or NULL for blank/comment lines.
- */
-char *prepare_line(char *raw)
+/* Get number of contigous characters at the end of string all in @accept */
+int get_nend(char *str, char *accept)
 {
-	size_t l_white = 0, r_white = 0;
-	size_t len;
-	char *p;
+	int n = 0;
+	char *p = str;
 
-	len = strlen(raw);
+	while(*p)	{
+		if(strchr(accept, *p++) != NULL)
+			n++;
+		else
+			n = 0;
+	}
+	return n;
+}
+
+/* Strip leading whitespace, return 0 for comments or blank, 1 otherwise */
+int filter_line(char *raw, int *removed)
+{
+	size_t l_white = 0;
+	size_t len = strlen(raw);
 
 	if(len > 1)	{
 		/* How many whitespace chars start the string? */
 		l_white = strspn(raw, "\t ");
 
-		/* Find out about and strip off any trailing whitespace */
-		if(len >= 2 && l_white < len - 1)	{
-			p = raw + len - 2;
-			while(p != raw)	{
-				if(*p == '\t' || *p == ' ')
-					r_white++;
-				else
-					break;
-				p--;
-			}
-			*(raw + len - (1 + r_white)) = '\0';
-		}
-
 		/* Move the non-whitespace part to the begenning of the string */
-		if(l_white + r_white > 0)
-			memmove(raw, (raw + l_white), len - (l_white + r_white));
+		if(l_white > 0)
+			memmove(raw, (raw + l_white), len - l_white);
 	}
-
+	*removed = (int)l_white;
 	/* Skip comments and blank lines */
-	return (*raw == '#' || *raw == ';' || len < l_white + 2) ? NULL : raw;
+	return (*raw == '#' || *raw == ';' || len < l_white + 2) ? 0 : 1;
 }
+
+/* Strip off trailing whitespace in *raw and re-terminate the string */
+char *strip_line(char *raw)
+{
+	size_t len = strlen(raw);
+
+	/* Find out about and strip off any trailing whitespace */
+	if(len >= 2)	{
+		size_t r_white;
+		r_white = get_nend(raw, " \t\n");
+		*(raw + len - r_white) = '\0';
+	}
+	return raw;
+}
+
 
 /* If the line is a valid "[section]", modify *str by reterminating as
  * needed by stripping out any whitespace between the square brackets,
@@ -70,14 +82,6 @@ char *is_section(char *str)
 	return NULL;
 }
 
-int is_value(char *str)
-{
-	char *p = NULL;
-	p += strcspn(p, "=");
-	p += strspn(p, " \t");
-	puts(p);
-	return NULL;
-}
 
 /* Return a pointer into *str that contins just the value: from after
  * the first word and the first occurance of '=' or ':' till the end.
@@ -102,28 +106,13 @@ char *get_key_value(char *str, char *key)
 	return NULL;
 }
 
-/* Get number of contigous characters at the end of string all in @accept */
-int get_nend(char *str, char *accept)
-{
-	int n = 0;
-	char *p = str;
-
-	while(*p)	{
-		if(strchr(accept, *p++) != NULL)
-			n++;
-		else
-			n = 0;
-	}
-	return n;
-}
-
 
 char *ini_readline(FILE *fp, int *err)
 {
 	char line_buf[INIREAD_LINEBUF];
 	char *real_line = NULL;
 	size_t buflen = 0;
-	int n_endslash = 0;
+	int n_endslash = 0, adj;
 
 	assert(fp != NULL);
 
@@ -147,19 +136,23 @@ char *ini_readline(FILE *fp, int *err)
 
 	memmove(real_line, line_buf, buflen - (n_endslash / 2) + 1);
 
+	/* Strip leading whitespace, and check for blanks/comments */
+	if(filter_line(real_line, &adj) == 0)	{
+		free(real_line);
+		return ini_readline(fp, err); 
+	}
+
+
 	/* If number of trailing slashes is odd, it is a line continuation */
 	if(n_endslash > 0 && n_endslash % 2 != 0)	{
-		size_t cumlen = buflen - (n_endslash / 2) - 2;
-		char last = 0;
+		size_t cumlen = buflen - (n_endslash / 2) - 2 - adj;
 		
 		/* Read subsequent lines into an expanding buffer stopping when we
 		 * encounter a line ending in 0 or an even number of backslashes
 		 */
 		while(fgets(line_buf, INIREAD_LINEBUF, fp) != NULL)	{
-
 			buflen = strlen(line_buf);
-			last = line_buf[buflen - 1];
-
+	
 			/* Count trailing slashes */
 			n_endslash = get_nend(line_buf, "\\\n") - 1;
 
@@ -179,12 +172,13 @@ char *ini_readline(FILE *fp, int *err)
 
 			/* If we end with \\, treat it as escaped */
 			if(n_endslash % 2 == 0)	{
-				real_line[cumlen + 2] = '\0';
+				real_line[cumlen + 1] = '\0';
 				break;
 			}
 		}
 	}
-	return real_line;
+
+	return strip_line(real_line);
 }
 
 
@@ -216,9 +210,8 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 			 */
 			if((line_buf = ini_readline(fp, e)) == NULL)
 				break;
+			p = line_buf;
 
-			if((p = prepare_line(line_buf)) == NULL)
-				continue;
 
 			/* Did we find a [section]-defining line? */
 			if((sec = is_section(p)) != NULL)	{
