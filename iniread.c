@@ -7,13 +7,12 @@
 #include "iniread.h"
 
 /* Get number of contigous characters at the end of string all in @accept */
-int get_nend(char *str, char *accept)
+static int get_nend(const char *str, char *accept)
 {
 	int n = 0;
-	char *p = str;
 
-	while(*p)	{
-		if(strchr(accept, *p++) != NULL)
+	while(*str != NULL)	{
+		if(strchr(accept, *str++) != NULL)
 			n++;
 		else
 			n = 0;
@@ -22,10 +21,9 @@ int get_nend(char *str, char *accept)
 }
 
 /* Strip leading whitespace, return 0 for comments or blank, 1 otherwise */
-int filter_line(char *raw, int *removed)
+static int filter_line(char *raw, size_t len, int *removed)
 {
 	size_t l_white = 0;
-	size_t len = strlen(raw);
 
 	if(len > 1)	{
 		/* How many whitespace chars start the string? */
@@ -40,33 +38,19 @@ int filter_line(char *raw, int *removed)
 	return (*raw == '#' || *raw == ';' || len < l_white + 2) ? 0 : 1;
 }
 
-/* Strip off trailing whitespace in *raw and re-terminate the string */
-char *strip_line(char *raw)
-{
-	size_t len = strlen(raw);
-
-	/* Find out about and strip off any trailing whitespace */
-	if(len >= 2)	{
-		size_t r_white;
-		r_white = get_nend(raw, " \t\n");
-		*(raw + len - r_white) = '\0';
-	}
-	return raw;
-}
-
 
 /* If the line is a valid "[section]", modify *str by reterminating as
  * needed by stripping out any whitespace between the square brackets,
  * and return a pointer to the \0 terminated section name (in a now-
  * modified *str). If not return NULL and don't touch *str
  */
-char *is_section(char *str)
+static char *is_section(char *str)
 {
 	char *p = str;
 
 	/* Must start w/ [, end w/ ], and have something between */
 	if(*p == '[' && strlen(str) > 2 && *(p + strlen(str) - 1) == ']')	{
-		int start, stop;
+		size_t start, stop;
 		p++;
 
 		/* start is index(non-white), stop is index(last non-white) */
@@ -77,7 +61,7 @@ char *is_section(char *str)
 		p += start - 1;
 
 		/* If p is at ']' now, we didn't get any non-whitespace chars */
-		return *p == ']' ? NULL : p;
+		return (*p == ']') ? NULL : p;
 	}
 	return NULL;
 }
@@ -86,7 +70,7 @@ char *is_section(char *str)
 /* Return a pointer into *str that contins just the value: from after
  * the first word and the first occurance of '=' or ':' till the end.
  */
-char *get_key_value(char *str, char *key)
+static char *get_key_value(char *str, char *key)
 {
 	char *p = NULL;
 	size_t klen = strlen(key);
@@ -112,59 +96,59 @@ char *ini_readline(FILE *fp, int *err)
 	char line_buf[INIREAD_LINEBUF];
 	char *real_line = NULL;
 	size_t buflen = 0;
-	int n_endslash = 0, adj;
+	int n_endslash = 0, adj = 0;
 
 	assert(fp != NULL);
 
-	/* Read in first line */
+	/* Read in one line */
 	if(fgets(line_buf, INIREAD_LINEBUF, fp) == NULL)
 		return NULL;
 
-	/* Check for trailing slash */
+	/* Strip leading whitespace, and check for blanks/comments and skip them
+	 * (tail rec shouldn't grow stack).  @adj is length of leading whitespace.
+	 */
 	buflen = strlen(line_buf);
+	if(filter_line(line_buf, buflen, &adj) == 0)
+		return ini_readline(fp, err);
+
+	/* Check for trailing slash */
 	n_endslash = get_nend(line_buf, "\\\n") - 1;
-	
-	if((real_line = malloc(buflen + 1)) == NULL)	{
+
+	if((real_line = malloc(buflen + 4)) == NULL)	{
 		fputs("Error: malloc() failed\n", stderr);
 		*err = INI_NOMEM;
 		return NULL;
 	}
-	
+
 	/* Reterminate line if trailing backslashes are present */
 	line_buf[buflen - (n_endslash / 2) - 1] = '\n';
 	line_buf[buflen - (n_endslash / 2)] = '\0';
 
 	memmove(real_line, line_buf, buflen - (n_endslash / 2) + 1);
 
-	/* Strip leading whitespace, and check for blanks/comments */
-	if(filter_line(real_line, &adj) == 0)	{
-		free(real_line);
-		return ini_readline(fp, err); 
-	}
-
-
 	/* If number of trailing slashes is odd, it is a line continuation */
 	if(n_endslash > 0 && n_endslash % 2 != 0)	{
 		size_t cumlen = buflen - (n_endslash / 2) - 2 - adj;
-		
+
 		/* Read subsequent lines into an expanding buffer stopping when we
 		 * encounter a line ending in 0 or an even number of backslashes
 		 */
 		while(fgets(line_buf, INIREAD_LINEBUF, fp) != NULL)	{
+			char *new_ptr;
 			buflen = strlen(line_buf);
-	
+
 			/* Count trailing slashes */
 			n_endslash = get_nend(line_buf, "\\\n") - 1;
 
-			errno = 0;
-			real_line = realloc(real_line, cumlen + buflen + 2);
-			if(errno == ENOMEM)	{
+			new_ptr = realloc(real_line, cumlen + buflen + 4);
+			if(new_ptr == NULL) {
 				fputs("Error: realloc() failed\n", stderr);
 				*err = INI_NOMEM;
 				free(real_line);
 				return NULL;
 			}
-			
+			real_line = new_ptr;
+
 			memmove(real_line + cumlen, line_buf, buflen);
 
 			/* Don't count backslash and newline */
@@ -176,12 +160,13 @@ char *ini_readline(FILE *fp, int *err)
 				break;
 			}
 		}
+		buflen = cumlen;
 	}
 
-	return strip_line(real_line);
+	*(real_line + strlen(real_line) - get_nend(real_line, " \t\n")) = '\0';
+
+	return real_line;
 }
-
-
 
 /* Public function: takes a filename, a section, and a key, and searches
  * for the value associated with that key in that section of the .ini-
@@ -218,7 +203,7 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 				/* If we already entered a section, we're now leaving it
 				 * without finding a matching key, so we're done
 				 */
-				if(in_section)
+				if(in_section != 0)
 					break;
 
 				if(strcmp(section, sec) == 0)	{
@@ -227,7 +212,7 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 					in_section = 1;
 				}
 			}
-			if(in_section)	{
+			if(in_section != 0)	{
 				if((p = get_key_value(p, key)) != NULL)	{
 					/* found it */
 					value = strdup(p);
