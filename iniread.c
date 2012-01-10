@@ -44,7 +44,7 @@ static int filter_line(char *raw, size_t len, int *removed)
  * and return a pointer to the \0 terminated section name (in a now-
  * modified *str). If not return NULL and don't touch *str
  */
-static char *is_section(char *str)
+char *is_section(char *str)
 {
 	char *p = str;
 
@@ -66,11 +66,45 @@ static char *is_section(char *str)
 	return NULL;
 }
 
+int get_key_value(char *str, char **key, char **value)
+{
+	char *p = str;
+	size_t k_len;
+	size_t n, m, total = strlen(str);
+	puts(str);
+	
+	/* Length of first word */
+	k_len = strcspn(p, "\t ");
+	printf("klen = %d  ", k_len);
+
+	if(k_len < 1)
+		return 1;
+
+	p += k_len + strspn(p + k_len, "\t ");	/* Possible white after key */
+
+	if(*p != '=' && *p != ':')
+		return 1;
+
+	p += 1 + strspn(p + 1, "\t ");
+
+	printf("val: %s\n", p);
+	*key = malloc(k_len + 1);
+	memcpy(*key, str, k_len);
+	*(key + k_len + 1) = '\0';
+
+	
+	
+	
+	
+	//*value = malloc(
+}
+
+
 
 /* Return a pointer into *str that contins just the value: from after
  * the first word and the first occurance of '=' or ':' till the end.
  */
-static char *get_key_value(char *str, char *key)
+static char *get_value(char *str, char *key)
 {
 	char *p = NULL;
 	size_t klen = strlen(key);
@@ -213,7 +247,7 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 				}
 			}
 			if(in_section != 0)	{
-				if((p = get_key_value(p, key)) != NULL)	{
+				if((p = get_value(p, key)) != NULL)	{
 					/* found it */
 					value = strdup(p);
 					if(value == NULL)

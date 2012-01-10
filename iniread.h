@@ -25,6 +25,17 @@
 
 #define INIREAD_LINEBUF	2048
 
+struct ini_file	{
+	struct ini_section *head;
+};
+
+struct ini_section	{
+	struct ini_section *next;
+	char *key;
+	char *value;
+};
+
+
 /* ini_read_value() -- read a value given a key and section of an .ini file
  *	@value:		storage that will be allocated for and hold the value
  *	@fname:		filename to try to open

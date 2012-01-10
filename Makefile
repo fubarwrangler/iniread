@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -g -O2
+CFLAGS=-Wall -g -O
 
 test: iniread.c initest.c
 	$(CC) $(CFLAGS) -o test $^
