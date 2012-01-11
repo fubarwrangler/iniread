@@ -7,6 +7,7 @@
 int main(int argc, char *argv[])
 {
 	char *v = NULL, *p;
+	char *key, *val = NULL;
 	int e;
 	FILE *fp;
 
@@ -21,8 +22,13 @@ int main(int argc, char *argv[])
 	while((v=ini_readline(fp, &e)) != NULL)	{
 		if((p = is_section(v)) != NULL)
 			printf("Section: %s\n", p);
-		else
-			get_key_value(v, NULL, NULL);
+		else {
+			get_key_value(v, &key, &val);
+			printf("Key: '%s', Value: '%s'\n", key, val);
+			free(key);
+			free(val);
+		}
+		//free(val);
 		free(v);
 	}
 	fclose(fp);

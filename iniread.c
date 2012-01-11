@@ -66,40 +66,50 @@ char *is_section(char *str)
 	return NULL;
 }
 
+/* Populate *key / *value with the copies of the right sections from the
+ * line given in *str.  Return 0 on success, 1 otherwise.
+ */
 int get_key_value(char *str, char **key, char **value)
 {
 	char *p = str;
-	size_t k_len;
-	size_t n, m, total = strlen(str);
-	puts(str);
+	char *new_space;
+	size_t k_len, v_len;
 	
-	/* Length of first word */
+	*key, *value = NULL;
+	
+	/* First word (up till whitespace) is the key */
 	k_len = strcspn(p, "\t ");
-	printf("klen = %d  ", k_len);
 
 	if(k_len < 1)
 		return 1;
 
 	p += k_len + strspn(p + k_len, "\t ");	/* Possible white after key */
 
-	if(*p != '=' && *p != ':')
+	if(*p != '=' && *p != ':')	/* The separator better be next */
 		return 1;
 
-	p += 1 + strspn(p + 1, "\t ");
+	p += 1 + strspn(p + 1, "\t ");	/* Skip whitespace after seperator */
 
-	printf("val: %s\n", p);
-	*key = malloc(k_len + 1);
-	memcpy(*key, str, k_len);
-	*(key + k_len + 1) = '\0';
+	v_len = strlen(p);
+	if(v_len < 1)
+		return 1;
 
-	
-	
-	
-	
-	//*value = malloc(
+	if((*key = malloc(k_len + 2)) != NULL)	{
+		memmove(*key, str, k_len);
+		*(*key + k_len + 1) = '\0';
+		if((*value = malloc(v_len + 2)) != NULL)	{
+			memmove(*value, p, v_len);
+			*(*value + v_len + 1) = '\0';
+		} else {
+			free(*key);
+			return 1;
+		}
+	} else {
+		return 1;
+	}
+
+	return 0;
 }
-
-
 
 /* Return a pointer into *str that contins just the value: from after
  * the first word and the first occurance of '=' or ':' till the end.
@@ -267,4 +277,3 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 	}
 	return value;
 }
-
