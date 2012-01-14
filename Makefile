@@ -1,8 +1,8 @@
 CC=gcc
-CFLAGS=-Wall -g -O
+CFLAGS=-Wall -g -O1
 
-test: iniread.c initest.c
-	$(CC) $(CFLAGS) -o test $^
+test: iniread.c
+	$(CC) $(CFLAGS) -D INITESTS -o test $^
 
 clean:
 	rm -f *.o test

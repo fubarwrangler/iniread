@@ -44,24 +44,25 @@ static int filter_line(char *raw, size_t len, int *removed)
  * and return a pointer to the \0 terminated section name (in a now-
  * modified *str). If not return NULL and don't touch *str
  */
-char *is_section(char *str)
+static char *get_section(char *str)
 {
 	char *p = str;
+	size_t len = strlen(str);
 
 	/* Must start w/ [, end w/ ], and have something between */
-	if(*p == '[' && strlen(str) > 2 && *(p + strlen(str) - 1) == ']')	{
+	if(*p == '[' && len > 2 && *(p + len - 1) == ']')	{
 		size_t start, stop;
 		p++;
 
 		/* start is index(non-white), stop is index(last non-white) */
 		start = strspn(p, " \t") + 1;
-		stop = start + strcspn((p + start), " \t]");
+		stop = start + strcspn((p + start), "]");
 
 		*(p + stop) = '\0';
 		p += start - 1;
 
 		/* If p is at ']' now, we didn't get any non-whitespace chars */
-		return (*p == ']') ? NULL : p;
+		return p;
 	}
 	return NULL;
 }
@@ -69,39 +70,38 @@ char *is_section(char *str)
 /* Populate *key / *value with the copies of the right sections from the
  * line given in *str.  Return 0 on success, 1 otherwise.
  */
-int get_key_value(char *str, char **key, char **value)
+static int get_key_value(char *str, char **key, char **value)
 {
 	char *p = str;
-	char *new_space;
 	size_t k_len, v_len;
 	
-	*key, *value = NULL;
+	*key = *value = NULL;
 	
-	/* First word (up till whitespace) is the key */
-	k_len = strcspn(p, "\t ");
-
+	/* First word (up till whitespace or seperator) is the key */
+	k_len = strcspn(p, "\t =:");
 	if(k_len < 1)
 		return 1;
 
 	p += k_len + strspn(p + k_len, "\t ");	/* Possible white after key */
 
+
 	if(*p != '=' && *p != ':')	/* The separator better be next */
 		return 1;
 
 	p += 1 + strspn(p + 1, "\t ");	/* Skip whitespace after seperator */
-
 	v_len = strlen(p);
 	if(v_len < 1)
 		return 1;
 
-	if((*key = malloc(k_len + 2)) != NULL)	{
+	if((*key = malloc(k_len + 1)) != NULL)	{
 		memmove(*key, str, k_len);
-		*(*key + k_len + 1) = '\0';
-		if((*value = malloc(v_len + 2)) != NULL)	{
+		*(*key + k_len) = '\0';
+		if((*value = malloc(v_len + 1)) != NULL)	{
 			memmove(*value, p, v_len);
-			*(*value + v_len + 1) = '\0';
+			*(*value + v_len) = '\0';
 		} else {
 			free(*key);
+			*key = NULL;
 			return 1;
 		}
 	} else {
@@ -114,7 +114,7 @@ int get_key_value(char *str, char **key, char **value)
 /* Return a pointer into *str that contins just the value: from after
  * the first word and the first occurance of '=' or ':' till the end.
  */
-static char *get_value(char *str, char *key)
+static char *get_val_from_string(char *str, char *key)
 {
 	char *p = NULL;
 	size_t klen = strlen(key);
@@ -135,7 +135,7 @@ static char *get_value(char *str, char *key)
 }
 
 
-char *ini_readline(FILE *fp, int *err)
+static char *ini_readline(FILE *fp, int *err)
 {
 	char line_buf[INIREAD_LINEBUF];
 	char *real_line = NULL;
@@ -241,9 +241,8 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 				break;
 			p = line_buf;
 
-
 			/* Did we find a [section]-defining line? */
-			if((sec = is_section(p)) != NULL)	{
+			if((sec = get_section(p)) != NULL)	{
 				/* If we already entered a section, we're now leaving it
 				 * without finding a matching key, so we're done
 				 */
@@ -257,7 +256,7 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 				}
 			}
 			if(in_section != 0)	{
-				if((p = get_value(p, key)) != NULL)	{
+				if((p = get_val_from_string(p, key)) != NULL)	{
 					/* found it */
 					value = strdup(p);
 					if(value == NULL)
@@ -277,3 +276,31 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 	}
 	return value;
 }
+
+#define INITESTS
+#ifdef INITESTS
+
+int main(int argc, char *argv[])
+{
+	char *v = NULL, *p;
+	char *key, *val = NULL;
+	int e;
+	FILE *fp;
+
+	fp = fopen(argv[1], "r");
+	while((v=ini_readline(fp, &e)) != NULL)	{
+		if((p = get_section(v)) != NULL)
+			printf("Section: %s\n", p);
+		else {
+			if(0 == get_key_value(v, &key, &val))	{
+				printf("Key: '%s', Value: '%s'\n", key, val);
+				free(key);
+				free(val);
+			}
+		}
+		free(v);
+	}
+	fclose(fp);
+	return 0;
+}
+#endif
