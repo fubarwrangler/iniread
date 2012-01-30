@@ -111,6 +111,7 @@ static int get_key_value(char *str, char **key, char **value)
 	return 0;
 }
 
+
 /* Return a pointer into *str that contins just the value: from after
  * the first word and the first occurance of '=' or ':' till the end.
  */
@@ -277,6 +278,47 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 	return value;
 }
 
+
+
+int read_inifile(FILE *fp, struct ini_file *inidata)
+{
+	int err, first = 1;
+	char *line, *p;
+	struct ini_section *sec = inidata->first, *sp;
+	struct kv_pair *kvp;
+
+	while((line=ini_readline(fp, &err)) != NULL)	{
+		if((p = get_section(line)) != NULL)	{
+			printf("New section %s\n", p);
+			if((sp = malloc(sizeof(struct ini_section))) != NULL)	{
+				sp->name = strdup(p);
+				sp->items = NULL;
+				sp->next = NULL;
+				if(first)	{
+					inidata->first = sp;
+					first = 0;
+				} else	{
+					sec->next = sp;
+				}
+				sec = sp;
+			} else {
+				fputs("Error allocating memory", stderr);
+				return 1;
+			}
+		} else {
+
+			//kvp = malloc(sizeof(struct kv_pair));
+
+			//if(get_key_value(line, &kvp->key, &kvp->value) == 0)	{
+
+			//}
+
+		}
+		free(line);
+	}
+}
+
+
 #define INITESTS
 #ifdef INITESTS
 
@@ -284,23 +326,27 @@ int main(int argc, char *argv[])
 {
 	char *v = NULL, *p;
 	char *key, *val = NULL;
-	int e;
+	struct ini_file ini;
+	struct ini_section *sp;
+	
 	FILE *fp;
 
 	fp = fopen(argv[1], "r");
-	while((v=ini_readline(fp, &e)) != NULL)	{
-		if((p = get_section(v)) != NULL)
-			printf("Section: %s\n", p);
-		else {
-			if(0 == get_key_value(v, &key, &val))	{
-				printf("Key: '%s', Value: '%s'\n", key, val);
-				free(key);
-				free(val);
-			}
-		}
-		free(v);
-	}
+	read_inifile(fp, &ini);
 	fclose(fp);
+	sp = ini.first;
+	while(sp != NULL)	{
+		struct kv_pair *k;
+		puts(sp->name);
+		k = sp->items;
+		while(k != NULL)	{
+			printf("Key: %s|Value: %s\n", k->key, k->value);
+			k = k->next;
+		}
+		sp = sp->next;
+	}
+
+	
 	return 0;
 }
 #endif

@@ -25,12 +25,19 @@
 
 #define INIREAD_LINEBUF	2048
 
-struct ini_file	{
-	struct ini_section *head;
+struct ini_file {
+	struct ini_section *first;
+	int n_sec;
 };
 
 struct ini_section	{
 	struct ini_section *next;
+	struct kv_pair *items;
+	char *name;
+};
+
+struct kv_pair {
+	struct kv_pair *next;
 	char *key;
 	char *value;
 };
