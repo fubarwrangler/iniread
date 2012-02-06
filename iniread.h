@@ -17,7 +17,7 @@
 #ifndef INIREAD_H__
 #define INIREAD_H__
 
-#define INI_FOUND		0
+#define INI_OK			0
 #define INI_NOSECTION	1
 #define INI_NOKEY		2
 #define INI_IOERROR		3
@@ -60,5 +60,12 @@ struct kv_pair {
  *	INI_NOMEM		Memory for the found buffer not found
  */
 char *ini_read_value(char *fname, char *section, char *key, int *e);
+
+
+
+struct ini_file *read_inifile(FILE *fp, int *err);
+
+void free_inifile(struct ini_file *inf);
+
 
 #endif

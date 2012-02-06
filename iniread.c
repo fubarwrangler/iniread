@@ -264,7 +264,7 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 						*e = INI_NOMEM;
 					//else
 						//puts(*value);
-					*e = INI_FOUND;
+					*e = INI_OK;
 					break;
 				}
 			}
@@ -279,17 +279,25 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 }
 
 
-
-int read_inifile(FILE *fp, struct ini_file *inidata)
+struct ini_file *read_inifile(FILE *fp, int *err)
 {
-	int err, first = 1;
-	char *line, *p;
-	struct ini_section *sec = inidata->first, *sp;
-	struct kv_pair *kvp;
+	struct ini_file *inidata = NULL;
+	struct ini_section *sec = NULL, *sp = NULL;
+	struct kv_pair *kvp = NULL, *new_kvp = NULL;
+	char *line = NULL;
+	int first = 1;
 
-	while((line=ini_readline(fp, &err)) != NULL)	{
+	*err = INI_NOMEM;
+
+	if((inidata = malloc(sizeof(struct ini_file))) == NULL)
+		return NULL;
+
+	sec = inidata->first;
+
+	while((line=ini_readline(fp, err)) != NULL)	{
+		char *p;
+
 		if((p = get_section(line)) != NULL)	{
-			printf("New section %s\n", p);
 			if((sp = malloc(sizeof(struct ini_section))) != NULL)	{
 				sp->name = strdup(p);
 				sp->items = NULL;
@@ -301,51 +309,98 @@ int read_inifile(FILE *fp, struct ini_file *inidata)
 					sec->next = sp;
 				}
 				sec = sp;
+				kvp = NULL;
 			} else {
 				fputs("Error allocating memory", stderr);
-				return 1;
+				free(line);
+				free_inifile(inidata);
+				return NULL;
 			}
-		} else {
-
-			//kvp = malloc(sizeof(struct kv_pair));
-
-			//if(get_key_value(line, &kvp->key, &kvp->value) == 0)	{
-
-			//}
+		} else if (!first) {
+			char *key, *val;
+			if(get_key_value(line, &key, &val) == 0)	{
+				if((new_kvp = malloc(sizeof(struct kv_pair))) != NULL)	{
+					new_kvp->value = val;
+					new_kvp->key = key;
+					new_kvp->next = NULL;
+					if(kvp == NULL)
+						sp->items = new_kvp;
+					else
+						kvp->next = new_kvp;
+					kvp = new_kvp;
+				} else {
+					free(key); free(val); free(line);
+					fputs("Error allocating memory", stderr);
+					free_inifile(inidata);
+					return NULL;
+				}
+			}
 
 		}
 		free(line);
 	}
+	*err = INI_OK;
+	return inidata;
+}
+
+void free_inifile(struct ini_file *inf)
+{
+	struct ini_section *s = inf->first, *sn;
+	while(s != NULL)	{
+		struct kv_pair *k = s->items, *kn;
+#ifdef INI_DEBUG
+		fprintf(stderr, "Freeing section %s (%p)...\n", s->name, s->next);
+#endif
+		while(k != NULL)	{
+#ifdef INI_DEBUG
+			fprintf(stderr, "Freeing kv %s=%s (%p)\n", k->key, k->value, k->next);
+#endif
+			kn = k->next;
+			free(k->key); free(k->value);
+			free(k);
+			k = kn;
+		}
+		sn = s->next;
+		free(s->name);
+		free(s);
+		s = sn;
+	}
+	free(inf);
 }
 
 
-#define INITESTS
+char *get_ini_value(char *section, char *key)
+{
+	
+}
+
+//#define INITESTS
 #ifdef INITESTS
 
 int main(int argc, char *argv[])
 {
-	char *v = NULL, *p;
-	char *key, *val = NULL;
-	struct ini_file ini;
+	struct ini_file *ini;
 	struct ini_section *sp;
+	int err;
 	
 	FILE *fp;
 
 	fp = fopen(argv[1], "r");
-	read_inifile(fp, &ini);
+	ini = read_inifile(fp, &err);
 	fclose(fp);
-	sp = ini.first;
+	sp = ini->first;
 	while(sp != NULL)	{
 		struct kv_pair *k;
-		puts(sp->name);
+		printf("Section: %s (%p)\n", sp->name, sp->items);
 		k = sp->items;
 		while(k != NULL)	{
-			printf("Key: %s|Value: %s\n", k->key, k->value);
+			printf("Key: %s\nValue: %s\n", k->key, k->value);
 			k = k->next;
 		}
 		sp = sp->next;
 	}
 
+	free_inifile(ini);
 	
 	return 0;
 }
