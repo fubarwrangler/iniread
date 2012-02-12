@@ -11,7 +11,7 @@ static int get_nend(const char *str, char *accept)
 {
 	int n = 0;
 
-	while(*str != NULL)	{
+	while(*str != '\0')	{
 		if(strchr(accept, *str++) != NULL)
 			n++;
 		else
@@ -278,7 +278,10 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 	return value;
 }
 
-
+/* Read from stdio stream *fp ini-file data into a newly created ini-file
+ * structure.  The sections are held in a linked list off the main struct
+ * and the key/value pairs are in linked lists off each section.
+ */
 struct ini_file *read_inifile(FILE *fp, int *err)
 {
 	struct ini_file *inidata = NULL;
@@ -294,7 +297,7 @@ struct ini_file *read_inifile(FILE *fp, int *err)
 
 	sec = inidata->first;
 
-	while((line=ini_readline(fp, err)) != NULL)	{
+	while((line = ini_readline(fp, err)) != NULL)	{
 		char *p;
 
 		if((p = get_section(line)) != NULL)	{
@@ -335,7 +338,6 @@ struct ini_file *read_inifile(FILE *fp, int *err)
 					return NULL;
 				}
 			}
-
 		}
 		free(line);
 	}
@@ -343,6 +345,7 @@ struct ini_file *read_inifile(FILE *fp, int *err)
 	return inidata;
 }
 
+/* Destroy all sections, keys, and values in *inf structure */
 void free_inifile(struct ini_file *inf)
 {
 	struct ini_section *s = inf->first, *sn;
@@ -368,13 +371,57 @@ void free_inifile(struct ini_file *inf)
 	free(inf);
 }
 
-
-char *get_ini_value(char *section, char *key)
+/* In a given ini_file, search section *section for *key and return its value */
+char *get_ini_value(struct ini_file *inf, char *section, char *key, int *err)
 {
-	
+	struct ini_section *s = inf->first;
+
+
+	*err = INI_NOSECTION;
+	while(s)	{
+		if(strcmp(s->name, section) == 0)	{
+			struct kv_pair *k = s->items;
+			*err = INI_NOKEY;
+			while(k)	{
+				if(strcmp(k->key, key) == 0)	{
+					*err = INI_OK;
+					return k->value;
+				}
+				k = k->next;
+			}
+			return NULL;
+		}
+		s = s->next;
+	}
+	return NULL;
 }
 
-//#define INITESTS
+/* Return the section from the *ini named *name */
+struct ini_section *get_ini_section(struct ini_file *ini, char *name)
+{
+	struct ini_section *s = ini->first;
+	while(s)	{
+		if(strcmp(s->name, name) == 0)
+			return s;
+		s = s->next;
+	}
+	return NULL;
+}
+
+/* Search through a section for a value */
+char *get_section_value(struct ini_section *s, char *key)
+{
+	struct kv_pair *k = s->items;
+	while(k)	{
+		if(strcmp(k->key, key) == 0)	{
+			return k->value;
+		}
+		k = k->next;
+	}
+	return NULL;
+}
+
+#define INITESTS
 #ifdef INITESTS
 
 int main(int argc, char *argv[])
@@ -385,21 +432,19 @@ int main(int argc, char *argv[])
 	
 	FILE *fp;
 
+	if(argc < 4)
+		return 1;
+	
 	fp = fopen(argv[1], "r");
 	ini = read_inifile(fp, &err);
 	fclose(fp);
-	sp = ini->first;
-	while(sp != NULL)	{
-		struct kv_pair *k;
-		printf("Section: %s (%p)\n", sp->name, sp->items);
-		k = sp->items;
-		while(k != NULL)	{
-			printf("Key: %s\nValue: %s\n", k->key, k->value);
-			k = k->next;
-		}
-		sp = sp->next;
-	}
 
+	printf("[%s] %s = %s\n", argv[2], argv[3],
+			get_ini_value(ini, argv[2], argv[3], &err)
+	);
+	printf("%d\n", err);
+
+	
 	free_inifile(ini);
 	
 	return 0;
