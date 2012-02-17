@@ -89,10 +89,13 @@ static int get_key_value(char *str, char **key, char **value)
 		return 1;
 
 	p += 1 + strspn(p + 1, "\t ");	/* Skip whitespace after seperator */
+
 	v_len = strlen(p);
-	if(v_len < 1)
+	
+	if(v_len < 1)	/* Better be something for the key */
 		return 1;
 
+	/* From start to k_len -> key, from p to end -> value */
 	if((*key = malloc(k_len + 1)) != NULL)	{
 		memmove(*key, str, k_len);
 		*(*key + k_len) = '\0';
@@ -125,12 +128,13 @@ static char *get_val_from_string(char *str, char *key)
 		p = str + klen;
 		p += strspn(p, " \t");
 
-		/* Next had better be the seperator, and we advance p */
-		if(*p != '=' && *p != ':')
-			return NULL;
-        p++;
-		p += strspn(p, " \t");
-		return p;
+		/* Next had better be the seperator, and we advance p past subsequent
+		 * whitespace that may be before the value.
+		 */
+		if(*p == '=' || *p == ':')	{
+			p += strspn(p + 1, " \t") + 1;
+			return p;
+		}
 	}
 	return NULL;
 }
@@ -278,11 +282,30 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 	return value;
 }
 
+int ini_read_file(char *fname, struct ini_file **inf)
+{
+	int err;
+	FILE *fp;
+
+	*inf = NULL;
+
+	if((fp = fopen(fname, "r")) != NULL)	{
+		*inf = ini_read_stream(fp, &err);
+		fclose(fp);
+	} else	{
+		perror("ini_read_file");
+		return INI_NOFILE;
+	}
+
+	return err;
+}
+
+
 /* Read from stdio stream *fp ini-file data into a newly created ini-file
  * structure.  The sections are held in a linked list off the main struct
  * and the key/value pairs are in linked lists off each section.
  */
-struct ini_file *read_inifile(FILE *fp, int *err)
+struct ini_file *ini_read_stream(FILE *fp, int *err)
 {
 	struct ini_file *inidata = NULL;
 	struct ini_section *sec = NULL, *sp = NULL;
@@ -316,7 +339,7 @@ struct ini_file *read_inifile(FILE *fp, int *err)
 			} else {
 				fputs("Error allocating memory", stderr);
 				free(line);
-				free_inifile(inidata);
+				ini_free_data(inidata);
 				return NULL;
 			}
 		} else if (!first) {
@@ -334,7 +357,7 @@ struct ini_file *read_inifile(FILE *fp, int *err)
 				} else {
 					free(key); free(val); free(line);
 					fputs("Error allocating memory", stderr);
-					free_inifile(inidata);
+					ini_free_data(inidata);
 					return NULL;
 				}
 			}
@@ -346,7 +369,7 @@ struct ini_file *read_inifile(FILE *fp, int *err)
 }
 
 /* Destroy all sections, keys, and values in *inf structure */
-void free_inifile(struct ini_file *inf)
+void ini_free_data(struct ini_file *inf)
 {
 	struct ini_section *s = inf->first, *sn;
 	while(s != NULL)	{
@@ -356,7 +379,8 @@ void free_inifile(struct ini_file *inf)
 #endif
 		while(k != NULL)	{
 #ifdef INI_DEBUG
-			fprintf(stderr, "Freeing kv %s=%s (%p)\n", k->key, k->value, k->next);
+			fprintf(stderr, "Freeing kv %s=%s (%p)\n",
+							k->key, k->value, k->next);
 #endif
 			kn = k->next;
 			free(k->key); free(k->value);
@@ -371,8 +395,8 @@ void free_inifile(struct ini_file *inf)
 	free(inf);
 }
 
-/* In a given ini_file, search section *section for *key and return its value */
-char *get_ini_value(struct ini_file *inf, char *section, char *key, int *err)
+/* In a given ini_file, search *section for *key and return the value */
+char *ini_get_value(struct ini_file *inf, char *section, char *key, int *err)
 {
 	struct ini_section *s = inf->first;
 
@@ -397,9 +421,9 @@ char *get_ini_value(struct ini_file *inf, char *section, char *key, int *err)
 }
 
 /* Return the section from the *ini named *name */
-struct ini_section *get_ini_section(struct ini_file *ini, char *name)
+struct ini_section *ini_find_section(struct ini_file *inf, char* name)
 {
-	struct ini_section *s = ini->first;
+	struct ini_section *s = inf->first;
 	while(s)	{
 		if(strcmp(s->name, name) == 0)
 			return s;
@@ -409,7 +433,7 @@ struct ini_section *get_ini_section(struct ini_file *ini, char *name)
 }
 
 /* Search through a section for a value */
-char *get_section_value(struct ini_section *s, char *key)
+char *ini_get_section_value(struct ini_section *s, char *key)
 {
 	struct kv_pair *k = s->items;
 	while(k)	{
@@ -427,26 +451,19 @@ char *get_section_value(struct ini_section *s, char *key)
 int main(int argc, char *argv[])
 {
 	struct ini_file *ini;
-	struct ini_section *sp;
-	int err;
-	
-	FILE *fp;
 
 	if(argc < 4)
 		return 1;
-	
-	fp = fopen(argv[1], "r");
-	ini = read_inifile(fp, &err);
-	fclose(fp);
 
-	printf("[%s] %s = %s\n", argv[2], argv[3],
-			get_ini_value(ini, argv[2], argv[3], &err)
-	);
-	printf("%d\n", err);
+	if(ini_read_file(argv[1], &ini) == INI_OK)	{
+		int err;
+		printf("[%s] %s = '%s'\n", argv[2], argv[3],
+				ini_get_value(ini, argv[2], argv[3], &err)
+		);
+		puts(ini_error_string(err));
+		ini_free_data(ini);
+	}
 
-	
-	free_inifile(ini);
-	
 	return 0;
 }
 #endif

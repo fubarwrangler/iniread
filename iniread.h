@@ -1,4 +1,4 @@
-/* iniread.h: function to retrieve values from .ini-style config files
+/* iniread.h: functions to retrieve values from .ini-style config files
  *
  * INI File format:
  *		[section]
@@ -6,12 +6,23 @@
  * e.g...
  *	|	# I am a comment, 'section1' below shouldn't have whitespace in name
  *	|	[ section1 ]
- *	|	name = value is afte first '=' sign
+ *	|	name = value is after first '=' sign
  *	|	[s2]
  *	|	key = = :=
  *	|	# the value for 'key' above is '= :='
  *	|	   key2	 =		  value
  *	|	# above, key2 = 'value', all whitespace before & after stripped
+ *
+ * 
+ * This also does backslash-interpolation.  If a key/value line ends with a '\'
+ * the next line is joined to the current one and the '\' and newline are
+ * removed.  Backslashes can be escaped with another backslash, so as to not
+ * continue the line.  The rule is: even # of '\''s => n/2 real backslashes,
+ * odd number of backslashes, (n - 1) / 2 backslashes with continuation.
+ *
+ * TODO: handle duplicate sections -- currently returns first in order of read
+ *       1. Check each one -- currently O(n^2) (sum_1..n ~ n^2)
+ *       2. Store sections in hash-table to avoid duplicates cheaply
  */
 
 #ifndef INIREAD_H__
@@ -20,10 +31,23 @@
 #define INI_OK			0
 #define INI_NOSECTION	1
 #define INI_NOKEY		2
-#define INI_IOERROR		3
-#define INI_NOMEM		4
+#define INI_NOFILE		3
+#define INI_IOERROR		4
+#define INI_NOMEM		5
+
+char *ini_errors[] = {	"Everything OK",
+						"Section not found",
+						"Key not found in section",
+						"Unable to open file",
+						"I/O error occured",
+						"Error allocating memory",
+						"BUG: invalid error code"
+					 };
 
 #define INIREAD_LINEBUF	2048
+
+#define ini_error_string(code) \
+				(code <= 5) ? ini_errors[code] : ini_errors[6]
 
 struct ini_file {
 	struct ini_section *first;
@@ -43,14 +67,21 @@ struct kv_pair {
 };
 
 
+/* ini_read_file() -- read an ini-formatted config file into an ini-file-structure
+ * 	@fname:	filename to open and read
+ * 	@inf:	Pointer to pointer to ini_file structure to store result in
+ *
+ * Returns: INI_OK (0) on success -- also *inf is non-null
+ */
+int ini_read_file(char *fname, struct ini_file **inf);
 
-/* read_ini() -- read an ini-formatted config file into an ini-file-structure
+/* ini_read_stream() -- read an ini-formatted config file into an ini-file-structure
  * 	@fp:	the opened file stream to read from
  * 	@err:	error indicator, 0 == INI_OK indicates success
  *
  * Returns: ini-structure ready to read from, NULL on error (@err non-zero too)
  */
-struct ini_file *read_inifile(FILE *fp, int *err);
+struct ini_file *ini_read_stream(FILE *fp, int *err);
 
 /* free_inifile() -- destroy an ini-file, freeing all associated memory
  * 	@inf:	the ini-file-structure to destroy
@@ -60,7 +91,7 @@ struct ini_file *read_inifile(FILE *fp, int *err);
  * 	are pointers within this structure and will be invalid if the parent
  * 	is freed.
  */
-void free_inifile(struct ini_file *inf);
+void ini_free_data(struct ini_file *inf);
 
 /* get_ini_value() -- parse an ini-file for the value of *key under *section
  * 	@inf:		ini-file-structure to look through
@@ -70,7 +101,7 @@ void free_inifile(struct ini_file *inf);
  *
  * Returns: pointer to the value in @inf if found, else NULL and *err is set
  */
-char *get_ini_value(struct ini_file *inf, char *section, char *key, int *err);
+char *ini_get_value(struct ini_file *inf, char *section, char *key, int *err);
 
 /* get_ini_section() -- get pointer to section element named *name
  * 	@inf:	ini-file object to read from
@@ -78,7 +109,7 @@ char *get_ini_value(struct ini_file *inf, char *section, char *key, int *err);
  *
  * Returns: pointer to section if found, else NULL
  */
-struct ini_section *get_ini_section(struct ini_file *ini, char *name);
+struct ini_section *ini_find_section(struct ini_file *inf, char *name);
 
 /* get_section_value() -- look through a given section for the named key
  * 	@s:		section to look through (probably returned by get_ini_section())
@@ -86,7 +117,7 @@ struct ini_section *get_ini_section(struct ini_file *ini, char *name);
  *
  * Returns: value corresponding to @key, or NULL on failure
  */
-char *get_section_value(struct ini_section *s, char *key);
+char *ini_get_section_value(struct ini_section *s, char *key);
 
 /* ini_read_value() -- read a value given a key and section of an .ini file,
  * 		skip creating the ini-file object and whatnot.
