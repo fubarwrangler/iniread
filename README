@@ -1,0 +1,46 @@
+C Library for reading .ini-style configuration files
+
+The public interface is easy, it reads the config file into an structure that
+makes for fast searching for sections and keys.  Just free it when done,
+it's as simple as that. 
+
+Why? This is something everyone seems to implement themselves -- and a few
+times I've wished to be able use a backslash to to line-continuation of a
+particular value if it were to be a paragraph.  Speaking of...
+
+Values can be continued using a backslash -- any line ending with a trailing
+'\' will cause the line below it to be joined to the value.  Even numbers of
+backslashes are considered escaped and result in n/2 real backslashes ending
+the line -- odd numbers are (n - 1) / 2 real backslashes with a continuation.
+
+-----------------------------------------------------------------------------
+
+The format is simple and ubiquitous -- 
+# Comments start with hash or semi-colon;
+[section]
+key = value
+
+[another_section]
+alpha = beta
+gamma = delta epsilon
+
+The key/value separator can be a colon as well -- whichever is seen first
+scanning the line is considered as the right separator. Whitespace is stripped
+around section-names, keys, and values.
+
+Examples (quotes added to delineate the entire value):
+
+key = this sentence will continue on to the next \
+line right here.
+==>
+key = "this sentence will continue on to the next line right here."
+
+key = this ends with two real backslashes \\\\
+==>
+key = "this ends with two real backslashes \\"
+
+key = this continues with a trailing backslash \\\
+onto the next line
+==>
+key = "this continues with a trailing backslash \onto the next line"
+
