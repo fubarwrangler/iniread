@@ -74,9 +74,9 @@ static int get_key_value(char *str, char **key, char **value)
 {
 	char *p = str;
 	size_t k_len, v_len;
-	
+
 	*key = *value = NULL;
-	
+
 	/* First word (up till whitespace or seperator) is the key */
 	k_len = strcspn(p, "\t =:");
 	if(k_len < 1)
@@ -91,7 +91,7 @@ static int get_key_value(char *str, char **key, char **value)
 	p += 1 + strspn(p + 1, "\t ");	/* Skip whitespace after seperator */
 
 	v_len = strlen(p);
-	
+
 	if(v_len < 1)	/* Better be something for the key */
 		return 1;
 
@@ -149,16 +149,19 @@ static char *ini_readline(FILE *fp, int *err)
 
 	assert(fp != NULL);
 
-	/* Read in one line */
-	if(fgets(line_buf, INIREAD_LINEBUF, fp) == NULL)
-		return NULL;
+	while((fgets(line_buf, INIREAD_LINEBUF, fp)) != NULL)	{
 
-	/* Strip leading whitespace, and check for blanks/comments and skip them
-	 * (tail rec shouldn't grow stack).  @adj is length of leading whitespace.
-	 */
-	buflen = strlen(line_buf);
-	if(filter_line(line_buf, buflen, &adj) == 0)
-		return ini_readline(fp, err);
+		buflen = strlen(line_buf);
+
+		/* Strip leading whitespace, and check for blanks/comments and skip
+		 * them, @adj is length of leading whitespace.
+		 */
+		if(filter_line(line_buf, buflen, &adj) != 0)
+			break;
+	}
+
+	if(feof(fp))
+		return NULL;
 
 	/* Check for trailing slash */
 	n_endslash = get_nend(line_buf, "\\\n") - 1;
@@ -289,14 +292,14 @@ int ini_read_file(char *fname, struct ini_file **inf)
 
 	*inf = NULL;
 
-	if((fp = fopen(fname, "r")) != NULL)	{
-		*inf = ini_read_stream(fp, &err);
-		fclose(fp);
-	} else	{
+	if((fp = fopen(fname, "r")) == NULL)	{
 		perror("ini_read_file");
 		return INI_NOFILE;
 	}
 
+	*inf = ini_read_stream(fp, &err);
+
+	fclose(fp);
 	return err;
 }
 

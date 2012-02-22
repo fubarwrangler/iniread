@@ -1,5 +1,2 @@
-1. Grows the stack too much -- recursive ini_readline() call not being
-   optimized correctly (replace w/ goto?)
-
-2. Store data in hashes or binary trees for faster searching
+1. Store data in hashes or binary trees for faster searching
 
