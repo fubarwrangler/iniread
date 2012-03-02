@@ -447,26 +447,3 @@ char *ini_get_section_value(struct ini_section *s, char *key)
 	}
 	return NULL;
 }
-
-#define INITESTS
-#ifdef INITESTS
-
-int main(int argc, char *argv[])
-{
-	struct ini_file *ini;
-
-	if(argc < 4)
-		return 1;
-
-	if(ini_read_file(argv[1], &ini) == INI_OK)	{
-		int err;
-		printf("[%s] %s = '%s'\n", argv[2], argv[3],
-				ini_get_value(ini, argv[2], argv[3], &err)
-		);
-		puts(ini_error_string(err));
-		ini_free_data(ini);
-	}
-
-	return 0;
-}
-#endif
