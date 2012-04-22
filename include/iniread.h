@@ -13,7 +13,7 @@
  *	|	   key2	 =		  value
  *	|	# above, key2 = 'value', all whitespace before & after stripped
  *
- * 
+ *
  * This also does backslash-interpolation.  If a key/value line ends with a '\'
  * the next line is joined to the current one and the '\' and newline are
  * removed.  Backslashes can be escaped with another backslash, so as to not
@@ -27,6 +27,8 @@
 
 #ifndef INIREAD_H__
 #define INIREAD_H__
+
+#include "hash.h"
 
 #define INI_OK			0
 #define INI_NOSECTION	1
@@ -56,14 +58,8 @@ struct ini_file {
 
 struct ini_section	{
 	struct ini_section *next;
-	struct kv_pair *items;
+	hash_table *items;
 	char *name;
-};
-
-struct kv_pair {
-	struct kv_pair *next;
-	char *key;
-	char *value;
 };
 
 

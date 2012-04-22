@@ -312,7 +312,6 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 {
 	struct ini_file *inidata = NULL;
 	struct ini_section *sec = NULL, *sp = NULL;
-	struct kv_pair *kvp = NULL, *new_kvp = NULL;
 	char *line = NULL;
 	int first = 1;
 
@@ -329,7 +328,16 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 		if((p = get_section(line)) != NULL)	{
 			if((sp = malloc(sizeof(struct ini_section))) != NULL)	{
 				sp->name = strdup(p);
-				sp->items = NULL;
+
+				if((sp->items = hash_init(NULL, 10)) == NULL)	{
+					free(line);
+					ini_free_data(inidata);
+					fputs("Error allocating memory", stderr);
+					return NULL;
+				}
+				hash_set_autogrow(sp->items, 1.1, 1.8);
+				hash_set_autofree(sp->items);
+
 				sp->next = NULL;
 				if(first)	{
 					inidata->first = sp;
@@ -338,7 +346,6 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 					sec->next = sp;
 				}
 				sec = sp;
-				kvp = NULL;
 			} else {
 				fputs("Error allocating memory", stderr);
 				free(line);
@@ -348,17 +355,10 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 		} else if (!first) {
 			char *key, *val;
 			if(get_key_value(line, &key, &val) == 0)	{
-				if((new_kvp = malloc(sizeof(struct kv_pair))) != NULL)	{
-					new_kvp->value = val;
-					new_kvp->key = key;
-					new_kvp->next = NULL;
-					if(kvp == NULL)
-						sp->items = new_kvp;
-					else
-						kvp->next = new_kvp;
-					kvp = new_kvp;
-				} else {
-					free(key); free(val); free(line);
+				int inserted = hash_insert(sp->items, key, val);
+				free(key);
+				if(inserted != 0)	{
+					free(val); free(line);
 					fputs("Error allocating memory", stderr);
 					ini_free_data(inidata);
 					return NULL;
@@ -376,20 +376,9 @@ void ini_free_data(struct ini_file *inf)
 {
 	struct ini_section *s = inf->first, *sn;
 	while(s != NULL)	{
-		struct kv_pair *k = s->items, *kn;
-#ifdef INI_DEBUG
-		fprintf(stderr, "Freeing section %s (%p)...\n", s->name, s->next);
-#endif
-		while(k != NULL)	{
-#ifdef INI_DEBUG
-			fprintf(stderr, "Freeing kv %s=%s (%p)\n",
-							k->key, k->value, k->next);
-#endif
-			kn = k->next;
-			free(k->key); free(k->value);
-			free(k);
-			k = kn;
-		}
+
+		hash_destroy(s->items);
+
 		sn = s->next;
 		free(s->name);
 		free(s);
@@ -407,16 +396,9 @@ char *ini_get_value(struct ini_file *inf, char *section, char *key, int *err)
 	*err = INI_NOSECTION;
 	while(s)	{
 		if(strcmp(s->name, section) == 0)	{
-			struct kv_pair *k = s->items;
-			*err = INI_NOKEY;
-			while(k)	{
-				if(strcmp(k->key, key) == 0)	{
-					*err = INI_OK;
-					return k->value;
-				}
-				k = k->next;
-			}
-			return NULL;
+			char *val = (char *)hash_get(s->items, key);
+			*err = (val == NULL) ? INI_NOKEY : INI_OK;
+			return val;
 		}
 		s = s->next;
 	}
@@ -436,14 +418,10 @@ struct ini_section *ini_find_section(struct ini_file *inf, char* name)
 }
 
 /* Search through a section for a value */
-char *ini_get_section_value(struct ini_section *s, char *key)
+inline char *ini_get_section_value(struct ini_section *s, char *key)
 {
-	struct kv_pair *k = s->items;
-	while(k)	{
-		if(strcmp(k->key, key) == 0)	{
-			return k->value;
-		}
-		k = k->next;
-	}
-	return NULL;
+	if(s != NULL)
+		return hash_get(s->items, key);
+	else
+		return NULL;
 }
