@@ -57,7 +57,6 @@ struct ini_file {
 
 struct ini_section	{
 	hash_table *items;
-	char *name;
 };
 
 

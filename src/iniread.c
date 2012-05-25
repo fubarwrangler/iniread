@@ -252,7 +252,6 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 
 		if((p = get_section(line)) != NULL)	{
 			if((sp = malloc(sizeof(struct ini_section))) != NULL)	{
-				sp->name = strdup(p);
 
 				if((sp->items = hash_init(NULL, 10)) == NULL)	{
 					free(line);
@@ -263,7 +262,7 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 				hash_set_autogrow(sp->items, 1.1, 1.8);
 				hash_set_autofree(sp->items);
 
-				if(hash_insert(inidata->sections, sp->name, sp) != 0)	{
+				if(hash_insert(inidata->sections, p, sp) != 0)	{
 					free(line);
 					fputs("Error allocating memory", stderr);
 					return NULL;
@@ -303,7 +302,6 @@ void ini_free_data(struct ini_file *inf)
 
 	while(hash_iterate(inf->sections, &ctx, &name, &s))	{
 		hash_destroy(s->items);
-		free(s->name);
 		free(s);
 	}
 

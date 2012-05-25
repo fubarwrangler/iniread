@@ -6,8 +6,6 @@
 #include "hash.h"
 
 
-
-
 unsigned int default_hash_fn(const char *key)
 {
     unsigned int hash = 0;
