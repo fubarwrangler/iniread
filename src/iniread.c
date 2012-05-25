@@ -5,20 +5,8 @@
 #include <errno.h>
 
 #include "iniread.h"
+#include "readline.h"
 
-/* Get number of contigous characters at the end of string all in @accept */
-static int get_nend(const char *str, char *accept)
-{
-	int n = 0;
-
-	while(*str != '\0')	{
-		if(strchr(accept, *str++) != NULL)
-			n++;
-		else
-			n = 0;
-	}
-	return n;
-}
 
 /* Strip leading whitespace, return 0 for comments or blank, 1 otherwise */
 static int filter_line(char *raw, size_t len, int *removed)
@@ -139,85 +127,27 @@ static char *get_val_from_string(char *str, char *key)
 	return NULL;
 }
 
+char *ini_readline(FILE *fp, int *err)	{
+	size_t len;
+	char *buf;
 
-static char *ini_readline(FILE *fp, int *err)
-{
-	char line_buf[INIREAD_LINEBUF];
-	char *real_line = NULL;
-	size_t buflen = 0;
-	int n_endslash = 0, adj = 0;
+	buf = readline_continue_fp(fp, &len);
 
-	assert(fp != NULL);
-
-	while((fgets(line_buf, INIREAD_LINEBUF, fp)) != NULL)	{
-
-		buflen = strlen(line_buf);
-
-		/* Strip leading whitespace, and check for blanks/comments and skip
-		 * them, @adj is length of leading whitespace.
-		 */
-		if(filter_line(line_buf, buflen, &adj) != 0)
+	switch(readline_error())	{
+		case READLINE_OK:
+			return buf;
+		case READLINE_MEM_ERR:
+			*err = INI_NOMEM;
 			break;
+		case READLINE_IO_ERR:
+		case READLINE_FILE_ERR:
+			*err = INI_IOERROR;
+			break;
+		default:
+			abort();
 	}
 
-	if(feof(fp))
-		return NULL;
-
-	/* Check for trailing slash */
-	n_endslash = get_nend(line_buf, "\\\n") - 1;
-
-	if((real_line = malloc(buflen + 4)) == NULL)	{
-		fputs("Error: malloc() failed\n", stderr);
-		*err = INI_NOMEM;
-		return NULL;
-	}
-
-	/* Reterminate line if trailing backslashes are present */
-	line_buf[buflen - (n_endslash / 2) - 1] = '\n';
-	line_buf[buflen - (n_endslash / 2)] = '\0';
-
-	memmove(real_line, line_buf, buflen - (n_endslash / 2) + 1);
-
-	/* If number of trailing slashes is odd, it is a line continuation */
-	if(n_endslash > 0 && n_endslash % 2 != 0)	{
-		size_t cumlen = buflen - (n_endslash / 2) - 2 - adj;
-
-		/* Read subsequent lines into an expanding buffer stopping when we
-		 * encounter a line ending in 0 or an even number of backslashes
-		 */
-		while(fgets(line_buf, INIREAD_LINEBUF, fp) != NULL)	{
-			char *new_ptr;
-			buflen = strlen(line_buf);
-
-			/* Count trailing slashes */
-			n_endslash = get_nend(line_buf, "\\\n") - 1;
-
-			new_ptr = realloc(real_line, cumlen + buflen + 4);
-			if(new_ptr == NULL) {
-				fputs("Error: realloc() failed\n", stderr);
-				*err = INI_NOMEM;
-				free(real_line);
-				return NULL;
-			}
-			real_line = new_ptr;
-
-			memmove(real_line + cumlen, line_buf, buflen);
-
-			/* Don't count backslash and newline */
-			cumlen += buflen - (n_endslash / 2) - 2;
-
-			/* If we end with \\, treat it as escaped */
-			if(n_endslash % 2 == 0)	{
-				real_line[cumlen + 1] = '\0';
-				break;
-			}
-		}
-		buflen = cumlen;
-	}
-
-	*(real_line + strlen(real_line) - get_nend(real_line, " \t\n")) = '\0';
-
-	return real_line;
+	return NULL;
 }
 
 /* Public function: takes a filename, a section, and a key, and searches
@@ -237,16 +167,10 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 
 		/* file opened, assume no section */
 		*e = INI_NOSECTION;
-		while(1)	{
-			/* Second+ time around we free line_buf from prev time */
-			if(line_buf != NULL)
-				free(line_buf);
-
+		while((line_buf = ini_readline(fp, e)) == NULL)	{
 			/* Read a line (combining ones that end in back-slash) into
 			 * heap storage -- MUST FREE
 			 */
-			if((line_buf = ini_readline(fp, e)) == NULL)
-				break;
 			p = line_buf;
 
 			/* Did we find a [section]-defining line? */
@@ -313,6 +237,7 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 	struct ini_file *inidata = NULL;
 	struct ini_section *sec = NULL, *sp = NULL;
 	char *line = NULL;
+	int len;
 
 	*err = INI_NOMEM;
 
@@ -355,14 +280,13 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 				int inserted = hash_insert(sp->items, key, val);
 				free(key);
 				if(inserted != 0)	{
-					free(val); free(line);
+					free(val);
 					fputs("Error allocating memory", stderr);
 					ini_free_data(inidata);
 					return NULL;
 				}
 			}
 		}
-		free(line);
 	}
 	*err = INI_OK;
 	return inidata;
