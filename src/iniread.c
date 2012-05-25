@@ -313,14 +313,14 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 	struct ini_file *inidata = NULL;
 	struct ini_section *sec = NULL, *sp = NULL;
 	char *line = NULL;
-	int first = 1;
 
 	*err = INI_NOMEM;
 
 	if((inidata = malloc(sizeof(struct ini_file))) == NULL)
 		return NULL;
 
-	sec = inidata->first;
+	if((inidata->sections = hash_init(NULL, 10)) == NULL)
+		return NULL;
 
 	while((line = ini_readline(fp, err)) != NULL)	{
 		char *p;
@@ -338,21 +338,18 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 				hash_set_autogrow(sp->items, 1.1, 1.8);
 				hash_set_autofree(sp->items);
 
-				sp->next = NULL;
-				if(first)	{
-					inidata->first = sp;
-					first = 0;
-				} else	{
-					sec->next = sp;
+				if(hash_insert(inidata->sections, sp->name, sp) != 0)	{
+					free(line);
+					fputs("Error allocating memory", stderr);
+					return NULL;
 				}
-				sec = sp;
 			} else {
 				fputs("Error allocating memory", stderr);
 				free(line);
 				ini_free_data(inidata);
 				return NULL;
 			}
-		} else if (!first) {
+		} else {
 			char *key, *val;
 			if(get_key_value(line, &key, &val) == 0)	{
 				int inserted = hash_insert(sp->items, key, val);
@@ -374,33 +371,34 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 /* Destroy all sections, keys, and values in *inf structure */
 void ini_free_data(struct ini_file *inf)
 {
-	struct ini_section *s = inf->first, *sn;
-	while(s != NULL)	{
+	struct ini_section *s;
+	char *name;
+	hash_iter ctx;
 
+	hash_iter_init(inf->sections, &ctx);
+
+	while(hash_iterate(inf->sections, &ctx, &name, &s))	{
 		hash_destroy(s->items);
-
-		sn = s->next;
 		free(s->name);
 		free(s);
-		s = sn;
 	}
+
+	hash_destroy(inf->sections);
 	free(inf);
 }
 
 /* In a given ini_file, search *section for *key and return the value */
 char *ini_get_value(struct ini_file *inf, char *section, char *key, int *err)
 {
-	struct ini_section *s = inf->first;
-
+	struct ini_section *s;;
 
 	*err = INI_NOSECTION;
-	while(s)	{
-		if(strcmp(s->name, section) == 0)	{
-			char *val = (char *)hash_get(s->items, key);
-			*err = (val == NULL) ? INI_NOKEY : INI_OK;
-			return val;
-		}
-		s = s->next;
+
+	s = (struct ini_section *)hash_get(inf->sections, section);
+	if(s != NULL)	{
+		char *val = (char *)hash_get(s->items, key);
+		*err = (val == NULL) ? INI_NOKEY : INI_OK;
+		return val;
 	}
 	return NULL;
 }
@@ -408,13 +406,10 @@ char *ini_get_value(struct ini_file *inf, char *section, char *key, int *err)
 /* Return the section from the *ini named *name */
 struct ini_section *ini_find_section(struct ini_file *inf, char* name)
 {
-	struct ini_section *s = inf->first;
-	while(s)	{
-		if(strcmp(s->name, name) == 0)
-			return s;
-		s = s->next;
-	}
-	return NULL;
+	if(inf != NULL)
+		return hash_get(inf->sections, name);
+	else
+		return NULL;
 }
 
 /* Search through a section for a value */

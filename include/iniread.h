@@ -52,12 +52,10 @@ char *ini_errors[] = {	"Everything OK",
 				(code <= 5) ? ini_errors[code] : ini_errors[6]
 
 struct ini_file {
-	struct ini_section *first;
-	int n_sec;
+	hash_table *sections;
 };
 
 struct ini_section	{
-	struct ini_section *next;
 	hash_table *items;
 	char *name;
 };
