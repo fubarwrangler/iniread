@@ -135,8 +135,7 @@ char *ini_readline(FILE *fp, int *err)	{
 
 	switch(readline_error())	{
 		case READLINE_OK:
-			if(buf != NULL)
-				return strdup(buf);
+			return buf;
 		case READLINE_MEM_ERR:
 			*err = INI_NOMEM;
 			break;
@@ -168,16 +167,10 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 
 		/* file opened, assume no section */
 		*e = INI_NOSECTION;
-		while(1)	{
-			/* Second+ time around we free line_buf from prev time */
-			if(line_buf != NULL)
-				free(line_buf);
-
+		while((line_buf = ini_readline(fp, e)) == NULL)	{
 			/* Read a line (combining ones that end in back-slash) into
 			 * heap storage -- MUST FREE
 			 */
-			if((line_buf = ini_readline(fp, e)) == NULL)
-				break;
 			p = line_buf;
 
 			/* Did we find a [section]-defining line? */
@@ -273,7 +266,6 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 				kvp = NULL;
 			} else {
 				fputs("Error allocating memory", stderr);
-				free(line);
 				ini_free_data(inidata);
 				return NULL;
 			}
@@ -290,14 +282,13 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 						kvp->next = new_kvp;
 					kvp = new_kvp;
 				} else {
-					free(key); free(val); free(line);
+					free(key); free(val);
 					fputs("Error allocating memory", stderr);
 					ini_free_data(inidata);
 					return NULL;
 				}
 			}
 		}
-		free(line);
 	}
 	*err = INI_OK;
 	return inidata;
