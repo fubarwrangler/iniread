@@ -1,1 +1,1 @@
-add_library(iniread SHARED iniread.c)
+add_library(iniread SHARED iniread.c readline.c)
