@@ -314,7 +314,6 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 	struct ini_section **sec = NULL, *new_sec = NULL;
 	struct kv_pair **kvp = NULL, *new_kvp = NULL;
 	char *line = NULL;
-	int first = 1;
 
 	*err = INI_NOMEM;
 
