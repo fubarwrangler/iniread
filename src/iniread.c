@@ -311,8 +311,8 @@ int ini_read_file(char *fname, struct ini_file **inf)
 struct ini_file *ini_read_stream(FILE *fp, int *err)
 {
 	struct ini_file *inidata = NULL;
-	struct ini_section *sec = NULL, *sp = NULL;
-	struct kv_pair *kvp = NULL, *new_kvp = NULL;
+	struct ini_section **sec = NULL, *new_sec = NULL;
+	struct kv_pair **kvp = NULL, *new_kvp = NULL;
 	char *line = NULL;
 	int first = 1;
 
@@ -321,46 +321,47 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 	if((inidata = malloc(sizeof(struct ini_file))) == NULL)
 		return NULL;
 
-	sec = inidata->first;
+	inidata->n_sec = 0;
+
+	sec = &inidata->first;
 
 	while((line = ini_readline(fp, err)) != NULL)	{
 		char *p;
 
 		if((p = get_section(line)) != NULL)	{
-			if((sp = malloc(sizeof(struct ini_section))) != NULL)	{
-				sp->name = strdup(p);
-				sp->items = NULL;
-				sp->next = NULL;
-				if(first)	{
-					inidata->first = sp;
-					first = 0;
-				} else	{
-					sec->next = sp;
-				}
-				sec = sp;
-				kvp = NULL;
+			if((new_sec = malloc(sizeof(struct ini_section))) != NULL)	{
+				inidata->n_sec++;
+
+				new_sec->name = strdup(p);
+				new_sec->items = NULL;
+				new_sec->next = NULL;
+
+				*sec = new_sec;
+				sec = &(*sec)->next;
+
+				kvp = &new_sec->items;
 			} else {
-				fputs("Error allocating memory", stderr);
+				perror("iniread get-section");
 				free(line);
 				ini_free_data(inidata);
+				*err = INI_NOMEM;
 				return NULL;
 			}
-		} else if (!first) {
+		} else {
 			char *key, *val;
 			if(get_key_value(line, &key, &val) == 0)	{
 				if((new_kvp = malloc(sizeof(struct kv_pair))) != NULL)	{
 					new_kvp->value = val;
 					new_kvp->key = key;
 					new_kvp->next = NULL;
-					if(kvp == NULL)
-						sp->items = new_kvp;
-					else
-						kvp->next = new_kvp;
-					kvp = new_kvp;
+
+					*kvp = new_kvp;
+					kvp = &(*kvp)->next;
 				} else {
 					free(key); free(val); free(line);
-					fputs("Error allocating memory", stderr);
+					perror("iniread get-key-value");
 					ini_free_data(inidata);
+					*err = INI_NOMEM;
 					return NULL;
 				}
 			}
@@ -370,6 +371,8 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 	*err = INI_OK;
 	return inidata;
 }
+
+#define INI_DEBUG
 
 /* Destroy all sections, keys, and values in *inf structure */
 void ini_free_data(struct ini_file *inf)
