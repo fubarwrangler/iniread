@@ -9,7 +9,7 @@
 
 
 /* Strip leading whitespace, return 0 for comments or blank, 1 otherwise */
-static int filter_line(char *raw, size_t len, int *removed)
+static int filter_line(char *raw, size_t len)
 {
 	size_t l_white = 0;
 
@@ -21,7 +21,6 @@ static int filter_line(char *raw, size_t len, int *removed)
 		if(l_white > 0)
 			memmove(raw, (raw + l_white), len - l_white);
 	}
-	*removed = (int)l_white;
 	/* Skip comments and blank lines */
 	return (*raw == '#' || *raw == ';' || len < l_white + 2) ? 0 : 1;
 }
@@ -131,23 +130,25 @@ char *ini_readline(FILE *fp, int *err)	{
 	size_t len;
 	char *buf;
 
-	buf = readline_continue_fp(fp, &len);
+	do {
+		buf = readline_continue_fp(fp, &len);
 
-	switch(readline_error())	{
-		case READLINE_OK:
-			return buf;
-		case READLINE_MEM_ERR:
-			*err = INI_NOMEM;
-			break;
-		case READLINE_IO_ERR:
-		case READLINE_FILE_ERR:
-			*err = INI_IOERROR;
-			break;
-		default:
-			abort();
-	}
+		switch(readline_error())	{
+			case READLINE_OK:
+				break;
+			case READLINE_MEM_ERR:
+				*err = INI_NOMEM;
+				return NULL;
+			case READLINE_IO_ERR:
+			case READLINE_FILE_ERR:
+				*err = INI_IOERROR;
+				return NULL;
+			default:
+				abort();
+		}
+	} while(buf != NULL && filter_line(buf, len) == 0);
 
-	return NULL;
+	return buf;
 }
 
 /* Public function: takes a filename, a section, and a key, and searches
