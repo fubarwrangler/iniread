@@ -6,6 +6,16 @@
 
 #include "iniread.h"
 
+char *ini_errors[] = {	"Everything OK",
+						"Section not found",
+						"Key not found in section",
+						"Unable to open file",
+						"I/O error occured",
+						"Error allocating memory",
+						"Interpolation parse error",
+						"BUG: invalid error code"
+					 };
+
 /* Get number of contigous characters at the end of string all in @accept */
 static int get_nend(const char *str, char *accept)
 {

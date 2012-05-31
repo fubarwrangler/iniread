@@ -36,15 +36,7 @@
 #define INI_NOMEM		5
 #define INI_PARSEERROR	6
 
-char *ini_errors[] = {	"Everything OK",
-						"Section not found",
-						"Key not found in section",
-						"Unable to open file",
-						"I/O error occured",
-						"Error allocating memory",
-						"Interpolation parse error",
-						"BUG: invalid error code"
-					 };
+extern char *ini_errors[];
 
 #define INIREAD_LINEBUF	2048
 
