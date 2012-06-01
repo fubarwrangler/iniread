@@ -19,11 +19,13 @@ int main(int argc, char *argv[])
 	sv = get_variables(ini);
 
 
-	while(sv)	{
-		printf("Variable %s::%s [%d] referenced in section [%s]\n\tby key (%s): %s\n", sv->section, sv->variable, sv->index,
-				sv->container_sec->name, sv->container_kvp->key, sv->container_kvp->value);
+	/*while(sv)	{
+		printf("Variable %s::%s [%d] referenced in section [%s]\n\tby key (%s): %s\n",
+				sv->section, sv->variable, sv->index, sv->container_sec->name,
+				sv->container_kvp->key, sv->container_kvp->value);
 		sv = sv->next;
-	}
+	}*/
+	topo_sort(sv);
 
 	ini_free_data(ini);
 
