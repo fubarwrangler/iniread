@@ -381,7 +381,7 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 	return inidata;
 }
 
-#define INI_DEBUG
+//#define INI_DEBUG
 
 /* Destroy all sections, keys, and values in *inf structure */
 void ini_free_data(struct ini_file *inf)

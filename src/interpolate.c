@@ -1,14 +1,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include "iniread.h"
 
-struct scoped_var {
-	char *section;
-	char *variable;
-	struct scoped_var *next;
-};
+
 
 static char *read_var(char *str, char **scope, char **name)	{
 
@@ -25,58 +22,66 @@ static char *read_var(char *str, char **scope, char **name)	{
 			*scope = calloc((s - str) + 1, 1);
 			memmove(*scope, str, (s - str));
 			str = s + 1;
-			while(*s++ != '}')
-				;
+			s = end;
 		} else {
 			*scope = NULL;
 		}
-		*name = calloc((s - str), 1);
-		memmove(*name, str, (s - str) - 1);
+		*name = calloc((s - str) + 1, 1);
+		memmove(*name, str, (s - str));
 	} else {
 		end = str;
 	}
 	return end;
 }
 
-
-static struct scoped_var *get_variables(struct kv_pair *kvp, char *current_sec)
+/* Scan list for matching section and value */
+static bool is_present(struct scoped_var *list, char *sec, char *val)
 {
-	char *s = kvp->value;
+	while(list)	{
+		if(strcmp(list->section, sec) == 0 && strcmp(list->variable, val) == 0)	{
+			return true;
+		}
+		list = list->next;
+	}
+	return false;
+}
+
+/* Take a key-value pair and  */
+struct scoped_var *get_variables(struct ini_file *ini)
+{
 	struct scoped_var *slist = NULL;
 	struct scoped_var **sp = &slist;
+	struct ini_section *section = ini->first;
+	struct kv_pair *kvp;
+	char *str;
 
-	while(*s)	{
-		if(*s == '$' && *(s + 1) == '{')	{
-			char *sec, *var;
-			s = read_var(s + 2, &sec, &var);
-			if(var != NULL)	{
-				*sp = malloc(sizeof(struct scoped_var));
-				(*sp)->section = (sec == NULL) ? strdup(current_sec) : sec;
-				(*sp)->variable = var;
-				sp = &(*sp)->next;
+	while(section)	{
+		kvp = section->items;
+		while(kvp)	{
+			int ctr = 0;
+			str = kvp->value;
+
+			while(*str)	{
+				if(*str == '$' && *(str + 1) == '{')	{
+					char *sec, *var;
+					str = read_var(str + 2, &sec, &var);
+					if(var != NULL)	{
+						*sp = malloc(sizeof(struct scoped_var));
+						(*sp)->section = (sec == NULL) ? strdup(section->name) : sec;
+						(*sp)->variable = var;
+						(*sp)->container_sec = section;
+						(*sp)->container_kvp = kvp;
+						(*sp)->index = ctr++;
+
+						sp = &(*sp)->next;
+					}
+				} /* s now at end of ${block} or at begenning if not valid */
+				str++;
 			}
-		} /* s now at end of ${block} or at begenning if not valid */
-		s++;
+			kvp = kvp->next;
+		}
+		section = section->next;
 	}
 	return slist;
 }
 
-int ini_interpolate(struct ini_file *ini)
-{
-	return 0;
-}
-
-int main(int argc, char *argv[])
-{
-	char *s = NULL, *scope = NULL, *name = NULL;
-	struct kv_pair k = {NULL, "key", "string that will ${be} interpolated ${sec.variable}${who}."};
-	struct scoped_var *sv;
-
-	sv = get_variables(&k, "http");
-	while(sv)	{
-		printf("Variable (%s)[%s]\n", sv->section, sv->variable);
-		sv = sv->next;
-	}
-
-	return 0;
-}

@@ -60,6 +60,17 @@ struct kv_pair {
 	char *value;
 };
 
+struct scoped_var {
+	struct scoped_var *next;
+	char *section;
+	char *variable;
+	struct kv_pair *container_kvp;
+	struct ini_section *container_sec;
+	int index;
+};
+
+struct scoped_var *get_variables(struct ini_file *ini);
+
 
 /* ini_read_file() -- read an ini-formatted config file into an ini-file-structure
  * 	@fname:	filename to open and read
