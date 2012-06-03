@@ -3,6 +3,7 @@
 #include <stdbool.h>
 
 #include "iniread.h"
+struct scoped_var *topo_sort(struct scoped_var *list);
 
 
 int main(int argc, char *argv[])

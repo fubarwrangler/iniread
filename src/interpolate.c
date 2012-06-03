@@ -5,7 +5,7 @@
 
 #include "iniread.h"
 
-
+#define streq(a, b) (strcmp(a, b) == 0)
 
 static char *read_var(char *str, char **scope, char **name)	{
 
@@ -34,20 +34,6 @@ static char *read_var(char *str, char **scope, char **name)	{
 	return end;
 }
 
-/* Scan list for matching section and value */
-static int count_present(struct scoped_var *list, char *sec, char *var)
-{
-	int count = 0;
-
-	while(list)	{
-		if(strcmp(list->section, sec) == 0 && strcmp(list->variable, var) == 0)	{
-			count++;
-		}
-		list = list->next;
-	}
-	return count;
-}
-
 /* Take a key-value pair and  */
 struct scoped_var *get_variables(struct ini_file *ini)
 {
@@ -74,6 +60,7 @@ struct scoped_var *get_variables(struct ini_file *ini)
 						(*sp)->container_sec = section;
 						(*sp)->container_kvp = kvp;
 						(*sp)->index = ctr++;
+						(*sp)->next = NULL;
 
 						sp = &(*sp)->next;
 					}
@@ -87,6 +74,30 @@ struct scoped_var *get_variables(struct ini_file *ini)
 	return slist;
 }
 
+/* Scan list for matching section and value */
+static int count_present(struct scoped_var *list, char *sec, char *var)
+{
+	int count = 0;
+
+	while(list)	{
+		if(streq(list->section, sec) && streq(list->variable, var))	{
+			count++;
+		}
+		list = list->next;
+	}
+	return count;
+}
+
+static bool is_referenced(struct scoped_var *sv, char *sec, char *var)
+{
+	while(sv)	{
+		if(streq(sv->section, sec) && streq(sv->variable, var))
+			return true;
+		sv = sv->next;
+	}
+	return false;
+}
+
 static void pprint_node(struct scoped_var *sv)
 {
 	printf("Variable %s::%s references %s::%s\n",
@@ -98,12 +109,21 @@ static void pprint_node(struct scoped_var *sv)
 struct scoped_var *topo_sort(struct scoped_var *list)	{
 	struct scoped_var *p, *q;
 	char *sec_name, *key_name;
+	int x;
 
 	/* List of nodes not referenced by anyone else */
-	for(p=list; p->next != NULL; p = p->next)	{
-		int x = count_present(list, p->container_sec->name, p->container_kvp->key);
+	for(p=list; p != NULL; p = p->next)	{
+		//x = count_present(list, p->container_sec->name, p->container_kvp->key);
 		pprint_node(p);
-		printf("\tCount: %d times\n", x);
+
+
+		printf("Node %s::%s ", p->container_sec->name, p->container_kvp->key);
+		if(is_referenced(list, p->container_sec->name, p->container_kvp->key))
+			printf("is referenced by others\n");
+		else
+			printf("is NOT referenced by others\n");
+
+		puts("\n");
 	}
 
 
