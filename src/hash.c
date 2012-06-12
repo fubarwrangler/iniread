@@ -100,7 +100,7 @@ void hash_destroy(hash_table *h)
 
 int hash_insert(hash_table *h, const char *key, void *data)
 {
-	bucket_data *b, *pb = NULL;
+	bucket_data **b = NULL;
 	unsigned int idx = h->hash_fn(key) % h->size;
 
 	/* Will this one push us over the top if autogrow is on? */
@@ -114,42 +114,37 @@ int hash_insert(hash_table *h, const char *key, void *data)
 		}
 	}
 
-	b = h->buckets[idx];
+	b = &h->buckets[idx];
 
 	/* Walk the bucket list to see if it exists already, if so silently
 	 * update, freeing if autofree set
 	 */
-	while(b != NULL)	{
-		if(strcmp(b->key, key) == 0)	{
+	while(*b != NULL)	{
+		if(strcmp((*b)->key, key) == 0)	{
 			if(h->flags & HASH_AUTOFREE_)
-				free(b->data);
-			b->data = data;
+				free((*b)->data);
+			(*b)->data = data;
 			return 0;
 		}
-		pb = b;
-		b = b->next;
+		b = &(*b)->next;
 	}
 
 	/* If not in the list, append to the end of the list */
-	if((b = malloc(sizeof(bucket_data))) == NULL)
+	if((*b = malloc(sizeof(bucket_data))) == NULL)
 		return 1;
 
-	if((b->key = strdup(key)) == NULL)	{
-		free(b);
+	if(((*b)->key = strdup(key)) == NULL)	{
+		free(*b);
 		return 1;
 	}
 
-	b->data = data;
-	b->next = NULL;
-
-	if(pb != NULL)
-		pb->next = b;
-	else
-		h->buckets[idx] = b;
+	(*b)->data = data;
+	(*b)->next = NULL;
 
 	h->nelm++;
 	return 0;
 }
+
 
 int hash_insert_string(hash_table *h, const char *key, char *val)
 {
@@ -181,25 +176,22 @@ void *hash_get(hash_table *h, const char *key)
 int hash_delete(hash_table *h, const char *key)
 {
 	unsigned int idx = h->hash_fn(key) % h->size;
-	bucket_data *b = h->buckets[idx];
-	bucket_data *pb = NULL;
+	bucket_data **b = &h->buckets[idx];
 
-	while(b != NULL)	{
-		if(strcmp(b->key, key) == 0)	{
-			if(pb == NULL)
-				h->buckets[idx] = b->next;
-			else
-				pb->next = b->next;
+	while(*b != NULL)	{
+		if(strcmp((*b)->key, key) == 0)	{
+			bucket_data *bd = *b;	/* Mark node to be deleted */
 
-			if(h->flags & HASH_AUTOFREE_)
-				free(b->data);
-			free(b->key);
-			free(b);
+			*b = (*b)->next;	/* Skip ahead to next node in list */
+
 			h->nelm--;
+			if(h->flags & HASH_AUTOFREE_)
+				free(bd->data);
+			free(bd->key);
+			free(bd);
 			return 0;
 		}
-		pb = b;
-		b = b->next;
+		b = &(*b)->next;
 	}
 	return 1;
 }
