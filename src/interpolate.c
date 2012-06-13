@@ -35,44 +35,47 @@ static char *read_var(char *str, char **scope, char **name)	{
 }
 
 /* Take a key-value pair and  */
-struct scoped_var *get_variables(struct ini_file *ini)
+hash_table *get_variables(struct ini_file *ini)
 {
-	struct scoped_var *slist = NULL;
-	struct scoped_var **sp = &slist;
-	struct ini_section *section = ini->first;
-	struct kv_pair *kvp;
+	hash_table *ht = hash_init(NULL, 0);
+	struct ini_section *section;
+	hash_iter s_iter, v_iter;
+	void *tk, *tv;
+	char buf[1024];
 	char *str;
 
-	while(section)	{
-		kvp = section->items;
-		while(kvp)	{
-			int ctr = 0;
-			str = kvp->value;
 
-			while(*str)	{
-				if(*str == '$' && *(str + 1) == '{')	{
-					char *sec, *var;
-					str = read_var(str + 2, &sec, &var);
-					if(var != NULL)	{
-						*sp = malloc(sizeof(struct scoped_var));
-						(*sp)->section = (sec == NULL) ? strdup(section->name) : sec;
-						(*sp)->variable = var;
-						(*sp)->container_sec = section;
-						(*sp)->container_kvp = kvp;
-						(*sp)->index = ctr++;
-						(*sp)->next = NULL;
 
-						sp = &(*sp)->next;
-					}
-				} /* s now at end of ${block} or at beginning if not valid */
-				str++;
-			}
-			kvp = kvp->next;
+	hash_iter_init(&v_iter);
+	while(hash_iterate(ini->sections, &s_iter, &tk, &tv) != 0)	{
+		section = (struct ini_section *)tv;
+		hash_iter_init(section->items, &v_iter);
+		while(hash_iterate(section->items, &v_iter, &tk, &tv)	{
+
 		}
-		section = section->next;
 	}
-	return slist;
+
+
+
+
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 struct sv_set {
 	struct scoped_var **ptrs;

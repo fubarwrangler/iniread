@@ -3,6 +3,8 @@
 #include <stdbool.h>
 
 #include "iniread.h"
+#include "interpolate.h"
+
 struct scoped_var *topo_sort(struct scoped_var *list);
 void free_variables(struct scoped_var *head);
 
