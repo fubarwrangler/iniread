@@ -105,24 +105,6 @@ struct ini_section *ini_find_section(struct ini_file *inf, char *name);
  */
 char *ini_get_section_value(struct ini_section *s, char *key);
 
-/* ini_read_value() -- read a value given a key and section of an .ini file,
- * 		skip creating the ini-file object and whatnot.
- *	@value:		storage that will be allocated for and hold the value
- *	@fname:		filename to try to open
- *	@section:	a section heading to look for a match in
- *	@key:		the key whose value we'll fetch under @section
- *
- *
- * Returns: error indicator, set to INI_FOUND if success (also value != NULL)
- *
- * Returns the appropriate code in the following cases:
- *	INI_FOUND		Everything went OK and a value was stored
- * 	INI_NOSECTION	Section cannot be found
- * 	INI_NOKEY		Section found but key isn't in it.
- * 	INI_IOERROR		Error opening / reading from *fname
- *	INI_NOMEM		Memory for the found buffer not found
- */
-char *ini_read_value(char *fname, char *section, char *key, int *e);
 
 int ini_interpolate(struct ini_file *ini);
 

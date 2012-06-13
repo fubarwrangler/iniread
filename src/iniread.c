@@ -18,23 +18,27 @@ char *ini_errors[] = {	"Everything OK",
 					 };
 
 
-/* Strip leading whitespace, return 0 for comments or blank, 1 otherwise */
-static int filter_line(char *raw, size_t len, int *removed)
+/* Strip leading whitespace + newline, return false for comments or blank */
+static int filter_line(char *raw)
 {
 	size_t l_white = 0;
+	size_t len = strlen(raw);
 
-	if(len > 1)	{
+    if(len > 1) {
 		/* How many whitespace chars start the string? */
 		l_white = strspn(raw, "\t ");
 
-		/* Move the non-whitespace part to the begenning of the string */
+        /* Move the non-whitespace part to the begenning of the string */
 		if(l_white > 0)
 			memmove(raw, (raw + l_white), len - l_white);
-	}
-	*removed = (int)l_white;
+
+		/* Strip off newline */
+		raw[len - l_white] = '\0';
+    }
 	/* Skip comments and blank lines */
-	return (*raw == '#' || *raw == ';' || len < l_white + 2) ? 0 : 1;
+	return !(*raw == '#' || *raw == ';' || len < l_white + 2);
 }
+
 
 
 /* If the line is a valid "[section]", modify *str by reterminating as
@@ -53,11 +57,13 @@ static char *get_section(char *str)
 		p++;
 
 		/* start is index(non-white), stop is index(last non-white) */
-		start = strspn(p, " \t") + 1;
-		stop = start + strcspn((p + start), "]");
+		start = strspn(p, " \t");
+		stop = start + strcspn((p + start), "]") - 1;
+        while(*(p + stop) == ' ' || *(p + stop) == '\t')
+            stop--;
 
-		*(p + stop) = '\0';
-		p += start - 1;
+		*(p + stop + 1) = '\0';
+		p += start;
 
 		/* If p is at ']' now, we didn't get any non-whitespace chars */
 		return p;
@@ -112,32 +118,7 @@ static int get_key_value(char *str, char **key, char **value)
 	return 0;
 }
 
-
-/* Return a pointer into *str that contins just the value: from after
- * the first word and the first occurance of '=' or ':' till the end.
- */
-static char *get_val_from_string(char *str, char *key)
-{
-	char *p = NULL;
-	size_t klen = strlen(key);
-
-	if(strncmp(key, str, klen) == 0)	{
-
-		p = str + klen;
-		p += strspn(p, " \t");
-
-		/* Next had better be the seperator, and we advance p past subsequent
-		 * whitespace that may be before the value.
-		 */
-		if(*p == '=' || *p == ':')	{
-			p += strspn(p + 1, " \t") + 1;
-			return p;
-		}
-	}
-	return NULL;
-}
-
-char *ini_readline(FILE *fp, int *err)	{
+static char *ini_readline(FILE *fp, int *err)	{
 	size_t len;
 	char *buf;
 
@@ -160,69 +141,10 @@ char *ini_readline(FILE *fp, int *err)	{
 	return NULL;
 }
 
-/* Public function: takes a filename, a section, and a key, and searches
- * for the value associated with that key in that section of the .ini-
- * formatted file.  See header for more.
- */
-char *ini_read_value(char *fname, char *section, char *key, int *e)
-{
-	FILE *fp = NULL;
-	char *line_buf = NULL, *value = NULL;
-	char *p, *sec;
-
-	*e = INI_IOERROR;
-
-	if((fp = fopen(fname, "r")) != NULL)	{
-		int in_section = 0;
-
-		/* file opened, assume no section */
-		*e = INI_NOSECTION;
-		while((line_buf = ini_readline(fp, e)) == NULL)	{
-			/* Read a line (combining ones that end in back-slash) into
-			 * heap storage -- MUST FREE
-			 */
-			p = line_buf;
-
-			/* Did we find a [section]-defining line? */
-			if((sec = get_section(p)) != NULL)	{
-				/* If we already entered a section, we're now leaving it
-				 * without finding a matching key, so we're done
-				 */
-				if(in_section != 0)
-					break;
-
-				if(strcmp(section, sec) == 0)	{
-					/* section found, assume no key */
-					*e = INI_NOKEY;
-					in_section = 1;
-				}
-			}
-			if(in_section != 0)	{
-				if((p = get_val_from_string(p, key)) != NULL)	{
-					/* found it */
-					value = strdup(p);
-					if(value == NULL)
-						*e = INI_NOMEM;
-					//else
-						//puts(*value);
-					*e = INI_OK;
-					break;
-				}
-			}
-		}
-		fclose(fp);
-		if(line_buf != NULL)
-			free(line_buf);
-	} else	{
-		fprintf(stderr, "Error: cannot read config file: %s\n", fname);
-	}
-	return value;
-}
-
 int ini_read_file(char *fname, struct ini_file **inf)
 {
+	FILE *fp = NULL;
 	int err;
-	FILE *fp;
 
 	*inf = NULL;
 
@@ -256,9 +178,13 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 
 	if((inidata->sections = hash_init(NULL, 10)) == NULL)
 		return NULL;
+	hash_set_autogrow(inidata->sections, 0.8, 1.6);
 
 	while((line = ini_readline(fp, err)) != NULL)	{
 		char *p;
+
+		if(filter_line(line) == 0)
+			continue;
 
 		if((p = get_section(line)) != NULL)	{
 			if((sp = malloc(sizeof(struct ini_section))) != NULL)	{
@@ -269,7 +195,7 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 					fputs("Error allocating memory", stderr);
 					return NULL;
 				}
-				hash_set_autogrow(sp->items, 1.1, 1.8);
+				hash_set_autogrow(sp->items, 0.8, 1.6);
 				hash_set_autofree(sp->items);
 
 				if(hash_insert(inidata->sections, p, sp) != 0)	{
@@ -283,7 +209,7 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 				ini_free_data(inidata);
 				return NULL;
 			}
-		} else {
+		} else if (sp != NULL) {
 			char *key, *val;
 			if(get_key_value(line, &key, &val) == 0)	{
 				int inserted = hash_insert(sp->items, key, val);
