@@ -36,20 +36,14 @@
 #define INI_NOFILE		3
 #define INI_IOERROR		4
 #define INI_NOMEM		5
+#define INI_PARSEERROR	6
 
-char *ini_errors[] = {	"Everything OK",
-						"Section not found",
-						"Key not found in section",
-						"Unable to open file",
-						"I/O error occured",
-						"Error allocating memory",
-						"BUG: invalid error code"
-					 };
+extern char *ini_errors[];
 
 #define INIREAD_LINEBUF	2048
 
 #define ini_error_string(code) \
-				(code <= 5) ? ini_errors[code] : ini_errors[6]
+				(code <= 6) ? ini_errors[code] : ini_errors[6]
 
 struct ini_file {
 	hash_table *sections;
@@ -58,6 +52,17 @@ struct ini_file {
 struct ini_section	{
 	hash_table *items;
 };
+
+struct scoped_var {
+	struct scoped_var *next;
+	char *section;
+	char *variable;
+	struct kv_pair *container_kvp;
+	struct ini_section *container_sec;
+	int index;
+};
+
+struct scoped_var *get_variables(struct ini_file *ini);
 
 
 /* ini_read_file() -- read an ini-formatted config file into an ini-file-structure
@@ -130,5 +135,7 @@ char *ini_get_section_value(struct ini_section *s, char *key);
  *	INI_NOMEM		Memory for the found buffer not found
  */
 char *ini_read_value(char *fname, char *section, char *key, int *e);
+
+int ini_interpolate(struct ini_file *ini);
 
 #endif

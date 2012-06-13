@@ -7,6 +7,16 @@
 #include "iniread.h"
 #include "readline.h"
 
+char *ini_errors[] = {	"Everything OK",
+						"Section not found",
+						"Key not found in section",
+						"Unable to open file",
+						"I/O error occured",
+						"Error allocating memory",
+						"Interpolation parse error",
+						"BUG: invalid error code"
+					 };
+
 
 /* Strip leading whitespace, return 0 for comments or blank, 1 otherwise */
 static int filter_line(char *raw, size_t len, int *removed)
@@ -312,7 +322,7 @@ void ini_free_data(struct ini_file *inf)
 /* In a given ini_file, search *section for *key and return the value */
 char *ini_get_value(struct ini_file *inf, char *section, char *key, int *err)
 {
-	struct ini_section *s;;
+	struct ini_section *s;
 
 	*err = INI_NOSECTION;
 
@@ -335,7 +345,7 @@ struct ini_section *ini_find_section(struct ini_file *inf, char* name)
 }
 
 /* Search through a section for a value */
-inline char *ini_get_section_value(struct ini_section *s, char *key)
+char *ini_get_section_value(struct ini_section *s, char *key)
 {
 	if(s != NULL)
 		return hash_get(s->items, key);
