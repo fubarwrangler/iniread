@@ -167,9 +167,8 @@ int ini_read_file(char *fname, struct ini_file **inf)
 struct ini_file *ini_read_stream(FILE *fp, int *err)
 {
 	struct ini_file *inidata = NULL;
-	struct ini_section *sec = NULL, *sp = NULL;
-	char *line = NULL;
-	int len;
+	struct ini_section *sp = NULL;
+	char *line = NULL, *p;
 
 	*err = INI_NOMEM;
 
@@ -181,7 +180,6 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 	hash_set_autogrow(inidata->sections, 0.8, 1.6);
 
 	while((line = ini_readline(fp, err)) != NULL)	{
-		char *p;
 
 		if(filter_line(line) == 0)
 			continue;

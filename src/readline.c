@@ -140,7 +140,6 @@ static size_t get_nend(char *str, char c)
 char *readline_continue_fp(FILE *fp, size_t *slen)
 {
 	char *buf = NULL;
-	static size_t buf_s = 0;
 	static char *new_storage = NULL;
 	size_t len = 0, old_len = 0;
 

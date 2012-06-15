@@ -13,7 +13,11 @@ void free_variables(struct scoped_var *head);
 int main(int argc, char *argv[])
 {
 	struct ini_file *ini;
-	struct scoped_var *sv;
+	hash_table *ht;
+	hash_iter iter;
+	char *k;
+	struct scoped_var *v;
+
 
 	if(argc < 2)
 		return 1;
@@ -23,18 +27,14 @@ int main(int argc, char *argv[])
 	if(ini_read_file(argv[1], &ini) != INI_OK)
 		return 2;
 
-	sv = get_variables(ini);
+	ht = get_variables(ini);
+	hash_iter_init(ht, &iter);
+	while(hash_iterate(ht, &iter, &k, &v) != 0)	{
+		printf("(@%p) %s - %s (next %p)\n", &v, v->section_referenced, v->variable_referenced, v->next);
+	}
 
 
-	/*while(sv)	{
-		printf("Variable %s::%s [%d] referenced in section [%s]\n\tby key (%s): %s\n",
-				sv->section, sv->variable, sv->index, sv->container_sec->name,
-				sv->container_kvp->key, sv->container_kvp->value);
-		sv = sv->next;
-	}*/
-	topo_sort(sv);
 
-	free_variables(sv);
 	ini_free_data(ini);
 
 	return 0;
