@@ -248,9 +248,9 @@ int hash_iterate(hash_table *h, hash_iter *state, void **key, void **val)
 	if(state->bucket != NULL && state->bucket->next != NULL)	{
 		state->bucket = state->bucket->next;
 	} else {
-		while(++(state->idx) < h->size)	{
-			if(h->buckets[state->idx] != NULL)	{
-				state->bucket = h->buckets[state->idx];
+		while(++(state->idx) <= h->size)	{
+			if(h->buckets[state->idx - 1] != NULL)	{
+				state->bucket = h->buckets[state->idx - 1];
 				goto found;
 			}
 		}

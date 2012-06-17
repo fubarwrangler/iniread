@@ -35,13 +35,22 @@ static char *read_var(char *str, char **scope, char **name)	{
 	return end;
 }
 
+static char *make_key(char *section, char *key)
+{
+	char *buf = malloc(strlen(section) + strlen(key) + 3);
+	if(buf != NULL)
+		sprintf(buf, "%s::%s", section, key);
+	return buf;
+}
+
+
 
 /* Take a key-value pair and  */
 hash_table *get_variables(struct ini_file *ini)
 {
 	hash_table *ht = hash_init(NULL, 0);
 	struct ini_section *section;
-	struct scoped_var **sp;
+	struct scoped_var **sp, *head;
 	hash_iter s_iter, v_iter;
 	void *tk, *tv;
 	char *sec_name, *key, *val;
@@ -50,18 +59,14 @@ hash_table *get_variables(struct ini_file *ini)
 
 
 	hash_iter_init(ini->sections, &s_iter);
-	while(hash_iterate(ini->sections, &s_iter, &sec_name, &tv) != 0)	{
-		section = (struct ini_section *)tv;
+	while(hash_iterate(ini->sections, &s_iter, &sec_name, &section) != 0)	{
 		hash_iter_init(section->items, &v_iter);
 		while(hash_iterate(section->items, &v_iter, &key, &val) != 0)	{
-			struct scoped_var *head = NULL;
-			char *buf = malloc(strlen(sec_name) + strlen(key) + 4);
+			head = NULL;
 
-			sprintf(buf, "%s::%s", sec_name, key);
 
 			sp = &head;
 
-			printf("Section: %s, Key: %s, Value: %s\n", sec_name, key, val);
 			while(*val)	{
 				if(*val == '$' && *(val + 1) == '{')	{
 					char *sec, *var;
@@ -80,19 +85,30 @@ hash_table *get_variables(struct ini_file *ini)
 				} /* s now at end of ${block} or at beginning if not valid */
 				val++;
 			}
-			hash_insert(ht, buf, head);
-			free(buf);
+			if(head != NULL)	{
+				char *buf = make_key(sec_name, key);
+				hash_insert(ht, buf, head);
+				free(buf);
+			}
 		}
 	}
 
 	return ht;
 }
 
+static bool is_referenced(char *sec, char *var, hash_table *data)
+{
+	char buf = make_key(sec, var);
+	bool found;
+	found = (hash_get(data, buf) == NULL);
+	free(buf);
+	return found;
+}
 
 
-
-
-
+struct sorted_list *topo_sort(hash_table *ht)	{
+	return NULL;
+}
 
 
 

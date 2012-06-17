@@ -10,7 +10,14 @@ struct scoped_var {
 	char *variable_referenced;
 };
 
+struct sorted_list {
+	char *section;
+	char *variable;
+	struct sorted_list *next;
+};
+
 hash_table *get_variables(struct ini_file *ini);
+struct sorted_list *topo_sort(hash_table *ht);
 
 
 
