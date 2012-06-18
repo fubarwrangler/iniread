@@ -29,11 +29,11 @@ char *_readl_err_map[] = {
  *
  * Returns: pointer to new resized buffer or NULL on error
  */
-static char *resize(char *buf, size_t new)
+static char *resize(char *buf, size_t new_size)
 {
-	char *tmp = realloc(buf, new);
+	char *tmp = realloc(buf, new_size);
 #ifdef _READLINE_DEBUG
-	fprintf(stderr, "---Resize to %d\n", (int)new);
+	fprintf(stderr, "---Resize to %d\n", (int)new_size);
 #endif
 	if(tmp == NULL)	{
 		_readl_error = READLINE_MEM_ERR;

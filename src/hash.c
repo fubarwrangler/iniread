@@ -98,6 +98,29 @@ void hash_destroy(hash_table *h)
 	}
 }
 
+void hash_destroy_callback(hash_table *h, hash_callback_fn_t cb)
+{
+	if(h!=NULL)	{
+		if(h->buckets != NULL)	{
+			bucket_data *b, *nb;
+			int i;
+
+			for(i = 0; i < h->size; i++)	{
+				b = h->buckets[i];
+				while(b != NULL)	{
+					nb = b->next;
+					free(b->key);
+					(*cb)(b->data);
+					free(b);
+					b = nb;
+				}
+			}
+			free(h->buckets);
+		}
+		free(h);
+	}
+}
+
 int hash_insert(hash_table *h, const char *key, void *data)
 {
 	bucket_data **b = NULL;

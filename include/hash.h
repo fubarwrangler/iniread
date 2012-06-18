@@ -8,6 +8,7 @@
 
 /* Hash function type -- maps strings to unsigned ints */
 typedef unsigned int (*hash_fn_t)(const char *);
+typedef void (*hash_callback_fn_t)(void *);
 
 #define HASH_AUTOFREE_	0x01	/* Call free() on each value on destroy */
 #define HASH_AUTOGROW_	0x02	/* Grow hash via rehash automatically */
@@ -71,6 +72,15 @@ hash_table *hash_init(hash_fn_t hash_fn, size_t initial_size);
  * @h: hash table to free
  */
 void hash_destroy(hash_table *h);
+
+/**
+ * hash_destroy_callback() -- free a hash table, calling custom function @cb on
+ *                            each data pointer
+ *  @h -- hash table to free
+ *  @cb -- callback function takes (void *) called with each ->data member
+ *         WARNING: must free this pointer if desired, even if autofree is set.
+ */
+void hash_destroy_callback(hash_table *h, hash_callback_fn_t cb);
 
 /**
  * hash_insert() -- insert a key/data pair into a hash table

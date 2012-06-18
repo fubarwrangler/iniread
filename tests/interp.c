@@ -5,6 +5,7 @@
 #include "iniread.h"
 #include "interpolate.h"
 
+void free_list(void *data);
 
 int main(int argc, char *argv[])
 {
@@ -37,7 +38,7 @@ int main(int argc, char *argv[])
 
 	topo_sort(ht);
 
-	hash_destroy(ht);
+	hash_destroy_callback(ht, free_list);
 	ini_free_data(ini);
 
 	return 0;

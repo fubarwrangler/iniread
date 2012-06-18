@@ -98,11 +98,26 @@ hash_table *get_variables(struct ini_file *ini)
 
 static bool is_referenced(char *sec, char *var, hash_table *data)
 {
-	char buf = make_key(sec, var);
+	char *buf = make_key(sec, var);
 	bool found;
 	found = (hash_get(data, buf) == NULL);
 	free(buf);
 	return found;
+}
+
+
+void free_list(void *data)
+{
+	struct scoped_var *s = (struct scoped_var *)data;
+	struct scoped_var *next;
+
+	while(s != NULL)	{
+		free(s->section_referenced);
+		free(s->variable_referenced);
+		next = s->next;
+		free(s);
+		s = next;
+	}
 }
 
 
