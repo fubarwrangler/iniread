@@ -43,8 +43,6 @@ static char *make_key(char *section, char *key)
 	return buf;
 }
 
-
-
 /* Take a key-value pair and  */
 hash_table *get_variables(struct ini_file *ini)
 {
@@ -57,13 +55,11 @@ hash_table *get_variables(struct ini_file *ini)
 	char buf[1024];
 
 
-
 	hash_iter_init(ini->sections, &s_iter);
 	while(hash_iterate(ini->sections, &s_iter, &sec_name, &section) != 0)	{
 		hash_iter_init(section->items, &v_iter);
 		while(hash_iterate(section->items, &v_iter, &key, &val) != 0)	{
 			head = NULL;
-
 
 			sp = &head;
 
@@ -122,7 +118,24 @@ void free_list(void *data)
 
 
 struct sorted_list *topo_sort(hash_table *ht)	{
-	return NULL;
+	struct sorted_list *sl, **node;
+	struct scoped_var *sv;
+
+	char *str;
+	hash_iter itr;
+
+	for(hash_iter_init(ht, &itr); hash_iterate(ht, &itr, &k, &sv) != 0 ;)	{
+		str = make_key(sv->section_referenced, sv->variable_referenced);
+		if(hash_get(ht, str) == NULL)	{
+			/* remove while iterate ?*/
+		}
+		free(str);
+	}
+
+
+	node = &sl;
+
+
 }
 
 
