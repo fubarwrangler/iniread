@@ -313,7 +313,6 @@ int ini_read_file(char *fname, struct ini_file **inf)
 	return err;
 }
 
-
 /* Read from stdio stream *fp ini-file data into a newly created ini-file
  * structure.  The sections are held in a linked list off the main struct
  * and the key/value pairs are in linked lists off each section.
@@ -323,6 +322,7 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 	struct ini_file *inidata = NULL;
 	struct ini_section **sec = NULL, *new_sec = NULL;
 	struct kv_pair **kvp = NULL, *new_kvp = NULL;
+	int first_sec_found = 0;
 	char *line = NULL;
 
 	*err = INI_NOMEM;
@@ -337,11 +337,13 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 	while((line = ini_readline(fp, err)) != NULL)	{
 		char *p;
 
-		if((p = get_section(line)) != NULL)	{
+		if((p = get_section(line)) != NULL || first_sec_found == 0)	{
+
+			first_sec_found = 1;
 			if((new_sec = malloc(sizeof(struct ini_section))) != NULL)	{
 				inidata->n_sec++;
 
-				new_sec->name = strdup(p);
+				new_sec->name = strdup((p == NULL) ? "" : p);
 				new_sec->items = NULL;
 				new_sec->next = NULL;
 
@@ -356,8 +358,11 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 				*err = INI_NOMEM;
 				return NULL;
 			}
+			if(p == NULL)
+				goto do_kvp;
 		} else {
 			char *key, *val;
+			do_kvp:
 			if(get_key_value(line, &key, &val) == 0)	{
 				if((new_kvp = malloc(sizeof(struct kv_pair))) != NULL)	{
 					new_kvp->value = val;
@@ -381,7 +386,7 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 	return inidata;
 }
 
-#define INI_DEBUG
+//#define INI_DEBUG
 
 /* Destroy all sections, keys, and values in *inf structure */
 void ini_free_data(struct ini_file *inf)
