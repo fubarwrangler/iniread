@@ -61,12 +61,15 @@ static char *get_section(char *str)
 
 	/* Must start w/ [, end w/ ], and have something between */
 	if(*p == '[' && len > 2 && *(p + len - 1) == ']')	{
-		size_t start, stop;
+		size_t start, stop, end_count;
 		p++;
 
 		/* start is index(non-white), stop is index(last non-white) */
 		start = strspn(p, " \t") + 1;
 		stop = start + strcspn((p + start), "]");
+
+		while(strchr(" \t", *(p + stop - 1)))
+			stop--;
 
 		*(p + stop) = '\0';
 		p += start - 1;
