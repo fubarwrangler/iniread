@@ -27,10 +27,10 @@ int main(int argc, char *argv[])
 	}
 
 	if(ini_read_file(argv[1], &ini) == INI_OK)	{
-		int err;
+		int err = INI_OK;
 		dump_ini(ini);
-		printf("[%s] %s = '%s'\n", argv[2], argv[3],
-			   ini_get_value(ini, argv[2], argv[3], &err)
+		printf("[%s] %s = '%d'\n", argv[2], argv[3],
+			   ini_get_bool(ini, argv[2], argv[3], &err)
 			  );
 		puts(ini_error_string(err));
 		ini_free_data(ini);

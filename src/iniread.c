@@ -1,7 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <assert.h>
+#include <stdbool.h>
+#include <ctype.h>
 #include <errno.h>
 
 #include "iniread.h"
@@ -12,6 +15,7 @@ char *ini_errors[] = {	"Everything OK",
 						"Unable to open file",
 						"I/O error occured",
 						"Error allocating memory",
+						"Variable not interpretable as boolean",
 						"Interpolation parse error",
 						"BUG: invalid error code"
 					 };
@@ -419,7 +423,10 @@ void ini_free_data(struct ini_file *inf)
 }
 
 /* In a given ini_file, search *section for *key and return the value */
-char *ini_get_value(struct ini_file *inf, char *section, char *key, int *err)
+char *ini_get_value(struct ini_file *inf,
+					const char *section,
+					const char *key,
+					int *err)
 {
 	struct ini_section *s = inf->first;
 
@@ -444,7 +451,7 @@ char *ini_get_value(struct ini_file *inf, char *section, char *key, int *err)
 }
 
 /* Return the section from the *ini named *name */
-struct ini_section *ini_find_section(struct ini_file *inf, char* name)
+struct ini_section *ini_find_section(struct ini_file *inf, const char *name)
 {
 	struct ini_section *s = inf->first;
 	while(s)	{
@@ -456,7 +463,7 @@ struct ini_section *ini_find_section(struct ini_file *inf, char* name)
 }
 
 /* Search through a section for a value */
-char *ini_get_section_value(struct ini_section *s, char *key)
+char *ini_get_section_value(struct ini_section *s, const char *key)
 {
 	struct kv_pair *k = s->items;
 	while(k)	{
@@ -466,4 +473,43 @@ char *ini_get_section_value(struct ini_section *s, char *key)
 		k = k->next;
 	}
 	return NULL;
+}
+
+static bool to_bool(const char *str, int *err)
+{
+	bool rv = false;
+
+	if(str == NULL)
+		return false;
+
+	/* If we match any 'true' values...*/
+	if( !strcasecmp("1", str) || !strcasecmp("true", str) ||
+		!strcasecmp("yes", str) || !strcasecmp("on", str)
+	  )
+		rv = true;
+	/* By now, if we don't match any 'false' values, it is an error */
+	else if(strcasecmp("0", str) && strcasecmp("false", str) &&
+			strcasecmp("no", str) && strcasecmp("off", str)
+		   )
+		*err = INI_NOTBOOL;
+	return rv;
+}
+
+
+bool ini_get_bool(struct ini_file *inf,
+				  const char *section,
+				  const char *key,
+				  int *err)
+{
+	return to_bool(ini_get_value(inf, section, key, err), err);
+}
+
+bool ini_get_section_bool(struct ini_section *s, const char *key, int *err)
+{
+	char *p = ini_get_section_value(s, key);
+	if(p == NULL)	{
+		*err = INI_NOKEY;
+		return false;
+	}
+	return to_bool(p, err);
 }
