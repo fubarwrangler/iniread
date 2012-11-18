@@ -5,7 +5,7 @@ void dump_ini(struct ini_file *ini)
 {
 	struct ini_section *s = ini->first;
 	while(s)	{
-		struct kv_pair *kv = s->items;
+		struct ini_kv_pair *kv = s->items;
 		printf("Section '%s':\n", s->name);
 		while(kv)	{
 			printf("'%s': '%s'\n", kv->key, kv->value);

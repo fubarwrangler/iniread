@@ -35,14 +35,16 @@
 #define INI_IOERROR		4
 #define INI_NOMEM		5
 #define INI_NOTBOOL		6
-#define INI_PARSEERROR	7
+#define INI_NOTINT		7
+#define INI_NOTFLOAT	9
+#define INI_PARSEERROR	10
 
 extern char *ini_errors[];
 
 #define INIREAD_LINEBUF	2048
 
 #define ini_error_string(code) \
-				(code <= 7) ? ini_errors[code] : ini_errors[8]
+				(code <= 9) ? ini_errors[code] : ini_errors[10]
 
 struct ini_file {
 	struct ini_section *first;
@@ -51,12 +53,12 @@ struct ini_file {
 
 struct ini_section	{
 	struct ini_section *next;
-	struct kv_pair *items;
+	struct ini_kv_pair *items;
 	char *name;
 };
 
-struct kv_pair {
-	struct kv_pair *next;
+struct ini_kv_pair {
+	struct ini_kv_pair *next;
 	char *key;
 	char *value;
 };
@@ -70,7 +72,7 @@ struct kv_pair {
  *
  * Returns: INI_OK (0) on success -- also *inf is non-null
  */
-int ini_read_file(char *fname, struct ini_file **inf);
+int ini_read_file(const char *fname, struct ini_file **inf);
 
 /* ini_read_stream() -- read an ini-formatted config file into an ini-file-structure
  * 	@fp:	the opened file stream to read from
@@ -108,7 +110,9 @@ char *ini_get_value(struct ini_file* inf, const char *section, const char *key, 
  * Returns: true or false, sets *err to INI_NOTBOOL if the string can't be
  * can't be interpreted as a boolean value
  */
-bool ini_get_bool(struct ini_file *inf, const char *section, const char *key, int *err);
+bool  ini_get_bool(struct ini_file *inf, const char *section, const char *key, int *err);
+int   ini_get_int(struct ini_file *inf, const char *section, const char *key, int *err);
+float ini_get_float(struct ini_file *inf, const char *section, const char *key, int *err);
 
 /* get_ini_section() -- get pointer to section element named *name
  * 	@inf:	ini-file object to read from
@@ -126,11 +130,12 @@ struct ini_section *ini_find_section(struct ini_file *inf, const char *name);
  */
 char *ini_get_section_value(struct ini_section *s, const char *key);
 
-/* ini_get_section_bool() -- like ini_find_section() but interprets bools
- *                           the same as ini_get_bool()
+/* ini_get_section_<type>() -- like ini_find_section() but converts the type
  * See: ini_get_bool() and ini_find_section()
  */
-bool ini_get_section_bool(struct ini_section *s, const char *key, int *err);
+bool  ini_get_section_bool(struct ini_section *s, const char *key, int *err);
+int   ini_get_section_int(struct ini_section *s, const char *key, int *err);
+float ini_get_section_float(struct ini_section *s, const char *key, int *err);
 
 /* ini_read_value() -- read a value given a key and section of an .ini file,
  * 		skip creating the ini-file object and whatnot.

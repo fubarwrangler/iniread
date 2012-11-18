@@ -1,10 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <assert.h>
-#include <stdbool.h>
-#include <ctype.h>
 #include <errno.h>
 
 #include "iniread.h"
@@ -16,6 +13,8 @@ char *ini_errors[] = {	"Everything OK",
 						"I/O error occured",
 						"Error allocating memory",
 						"Variable not interpretable as boolean",
+						"Variable not an integer",
+						"Variable not an float",
 						"Interpolation parse error",
 						"BUG: invalid error code"
 					 };
@@ -302,7 +301,7 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 	return value;
 }
 
-int ini_read_file(char *fname, struct ini_file **inf)
+int ini_read_file(const char *fname, struct ini_file **inf)
 {
 	int err;
 	FILE *fp;
@@ -328,7 +327,7 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 {
 	struct ini_file *inidata = NULL;
 	struct ini_section **sec = NULL, *new_sec = NULL;
-	struct kv_pair **kvp = NULL, *new_kvp = NULL;
+	struct ini_kv_pair **kvp = NULL, *new_kvp = NULL;
 	int first_sec_found = 0;
 	char *line = NULL;
 
@@ -371,7 +370,7 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 			char *key, *val;
 			do_kvp:
 			if(get_key_value(line, &key, &val) == 0)	{
-				if((new_kvp = malloc(sizeof(struct kv_pair))) != NULL)	{
+				if((new_kvp = malloc(sizeof(struct ini_kv_pair))) != NULL)	{
 					new_kvp->value = val;
 					new_kvp->key = key;
 					new_kvp->next = NULL;
@@ -400,7 +399,7 @@ void ini_free_data(struct ini_file *inf)
 {
 	struct ini_section *s = inf->first, *sn;
 	while(s != NULL)	{
-		struct kv_pair *k = s->items, *kn;
+		struct ini_kv_pair *k = s->items, *kn;
 #ifdef INI_DEBUG
 		fprintf(stderr, "Freeing section %s (%p)...\n", s->name, s->next);
 #endif
@@ -434,7 +433,7 @@ char *ini_get_value(struct ini_file *inf,
 	*err = INI_NOSECTION;
 	while(s)	{
 		if(strcmp(s->name, section) == 0)	{
-			struct kv_pair *k = s->items;
+			struct ini_kv_pair *k = s->items;
 			*err = INI_NOKEY;
 			while(k)	{
 				if(strcmp(k->key, key) == 0)	{
@@ -465,7 +464,7 @@ struct ini_section *ini_find_section(struct ini_file *inf, const char *name)
 /* Search through a section for a value */
 char *ini_get_section_value(struct ini_section *s, const char *key)
 {
-	struct kv_pair *k = s->items;
+	struct ini_kv_pair *k = s->items;
 	while(k)	{
 		if(strcmp(k->key, key) == 0)	{
 			return k->value;
@@ -473,43 +472,4 @@ char *ini_get_section_value(struct ini_section *s, const char *key)
 		k = k->next;
 	}
 	return NULL;
-}
-
-static bool to_bool(const char *str, int *err)
-{
-	bool rv = false;
-
-	if(str == NULL)
-		return false;
-
-	/* If we match any 'true' values...*/
-	if( !strcasecmp("1", str) || !strcasecmp("true", str) ||
-		!strcasecmp("yes", str) || !strcasecmp("on", str)
-	  )
-		rv = true;
-	/* By now, if we don't match any 'false' values, it is an error */
-	else if(strcasecmp("0", str) && strcasecmp("false", str) &&
-			strcasecmp("no", str) && strcasecmp("off", str)
-		   )
-		*err = INI_NOTBOOL;
-	return rv;
-}
-
-
-bool ini_get_bool(struct ini_file *inf,
-				  const char *section,
-				  const char *key,
-				  int *err)
-{
-	return to_bool(ini_get_value(inf, section, key, err), err);
-}
-
-bool ini_get_section_bool(struct ini_section *s, const char *key, int *err)
-{
-	char *p = ini_get_section_value(s, key);
-	if(p == NULL)	{
-		*err = INI_NOKEY;
-		return false;
-	}
-	return to_bool(p, err);
 }
