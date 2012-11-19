@@ -5,11 +5,36 @@
 #include <errno.h>
 
 #include "iniread.h"
-#include "readline.h"
 
+char *ini_errors[] = {	"Everything OK",
+						"Section not found",
+						"Key not found in section",
+						"Unable to open file",
+						"I/O error occured",
+						"Error allocating memory",
+						"Variable not interpretable as boolean",
+						"Variable not an integer",
+						"Variable not an float",
+						"Interpolation parse error",
+						"BUG: invalid error code"
+					 };
+
+/* Get number of contigous characters at the end of string all in @accept */
+static int get_nend(const char *str, char *accept)
+{
+	int n = 0;
+
+	while(*str != '\0')	{
+		if(strchr(accept, *str++) != NULL)
+			n++;
+		else
+			n = 0;
+	}
+	return n;
+}
 
 /* Strip leading whitespace, return 0 for comments or blank, 1 otherwise */
-static int filter_line(char *raw, size_t len)
+static int filter_line(char *raw, size_t len, int *removed)
 {
 	size_t l_white = 0;
 
@@ -21,6 +46,7 @@ static int filter_line(char *raw, size_t len)
 		if(l_white > 0)
 			memmove(raw, (raw + l_white), len - l_white);
 	}
+	*removed = (int)l_white;
 	/* Skip comments and blank lines */
 	return (*raw == '#' || *raw == ';' || len < l_white + 2) ? 0 : 1;
 }
@@ -38,12 +64,15 @@ static char *get_section(char *str)
 
 	/* Must start w/ [, end w/ ], and have something between */
 	if(*p == '[' && len > 2 && *(p + len - 1) == ']')	{
-		size_t start, stop;
+		size_t start, stop, end_count;
 		p++;
 
 		/* start is index(non-white), stop is index(last non-white) */
 		start = strspn(p, " \t") + 1;
 		stop = start + strcspn((p + start), "]");
+
+		while(strchr(" \t", *(p + stop - 1)))
+			stop--;
 
 		*(p + stop) = '\0';
 		p += start - 1;
@@ -138,6 +167,7 @@ char *ini_readline(FILE *fp, int *err)	{
 				break;
 			case READLINE_MEM_ERR:
 				*err = INI_NOMEM;
+				free(real_line);
 				return NULL;
 			case READLINE_IO_ERR:
 			case READLINE_FILE_ERR:
@@ -194,8 +224,6 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 					value = strdup(p);
 					if(value == NULL)
 						*e = INI_NOMEM;
-					//else
-						//puts(*value);
 					*e = INI_OK;
 					break;
 				}
@@ -210,24 +238,21 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 	return value;
 }
 
-int ini_read_file(char *fname, struct ini_file **inf)
+int ini_read_file(const char *fname, struct ini_file **inf)
 {
 	int err;
 	FILE *fp;
 
 	*inf = NULL;
 
-	if((fp = fopen(fname, "r")) == NULL)	{
-		perror("ini_read_file");
+	if((fp = fopen(fname, "r")) == NULL)
 		return INI_NOFILE;
-	}
 
 	*inf = ini_read_stream(fp, &err);
 
 	fclose(fp);
 	return err;
 }
-
 
 /* Read from stdio stream *fp ini-file data into a newly created ini-file
  * structure.  The sections are held in a linked list off the main struct
@@ -237,9 +262,9 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 {
 	struct ini_file *inidata = NULL;
 	struct ini_section **sec = NULL, *new_sec = NULL;
-	struct kv_pair **kvp = NULL, *new_kvp = NULL;
+	struct ini_kv_pair **kvp = NULL, *new_kvp = NULL;
+	int first_sec_found = 0;
 	char *line = NULL;
-	int first = 1;
 
 	*err = INI_NOMEM;
 
@@ -253,11 +278,13 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 	while((line = ini_readline(fp, err)) != NULL)	{
 		char *p;
 
-		if((p = get_section(line)) != NULL)	{
+		if((p = get_section(line)) != NULL || first_sec_found == 0)	{
+
+			first_sec_found = 1;
 			if((new_sec = malloc(sizeof(struct ini_section))) != NULL)	{
 				inidata->n_sec++;
 
-				new_sec->name = strdup(p);
+				new_sec->name = strdup((p == NULL) ? "" : p);
 				new_sec->items = NULL;
 				new_sec->next = NULL;
 
@@ -267,13 +294,18 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 				kvp = &new_sec->items;
 			} else {
 				perror("iniread get-section");
+				free(line);
 				ini_free_data(inidata);
+				*err = INI_NOMEM;
 				return NULL;
 			}
+			if(p == NULL)
+				goto do_kvp;
 		} else {
 			char *key, *val;
+			do_kvp:
 			if(get_key_value(line, &key, &val) == 0)	{
-				if((new_kvp = malloc(sizeof(struct kv_pair))) != NULL)	{
+				if((new_kvp = malloc(sizeof(struct ini_kv_pair))) != NULL)	{
 					new_kvp->value = val;
 					new_kvp->key = key;
 					new_kvp->next = NULL;
@@ -284,6 +316,7 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 					free(key); free(val);
 					perror("iniread get-key-value");
 					ini_free_data(inidata);
+					*err = INI_NOMEM;
 					return NULL;
 				}
 			}
@@ -293,12 +326,14 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 	return inidata;
 }
 
+//#define INI_DEBUG
+
 /* Destroy all sections, keys, and values in *inf structure */
 void ini_free_data(struct ini_file *inf)
 {
 	struct ini_section *s = inf->first, *sn;
 	while(s != NULL)	{
-		struct kv_pair *k = s->items, *kn;
+		struct ini_kv_pair *k = s->items, *kn;
 #ifdef INI_DEBUG
 		fprintf(stderr, "Freeing section %s (%p)...\n", s->name, s->next);
 #endif
@@ -321,7 +356,10 @@ void ini_free_data(struct ini_file *inf)
 }
 
 /* In a given ini_file, search *section for *key and return the value */
-char *ini_get_value(struct ini_file *inf, char *section, char *key, int *err)
+char *ini_get_value(struct ini_file *inf,
+					const char *section,
+					const char *key,
+					int *err)
 {
 	struct ini_section *s = inf->first;
 
@@ -329,7 +367,7 @@ char *ini_get_value(struct ini_file *inf, char *section, char *key, int *err)
 	*err = INI_NOSECTION;
 	while(s)	{
 		if(strcmp(s->name, section) == 0)	{
-			struct kv_pair *k = s->items;
+			struct ini_kv_pair *k = s->items;
 			*err = INI_NOKEY;
 			while(k)	{
 				if(strcmp(k->key, key) == 0)	{
@@ -346,7 +384,7 @@ char *ini_get_value(struct ini_file *inf, char *section, char *key, int *err)
 }
 
 /* Return the section from the *ini named *name */
-struct ini_section *ini_find_section(struct ini_file *inf, char* name)
+struct ini_section *ini_find_section(struct ini_file *inf, const char *name)
 {
 	struct ini_section *s = inf->first;
 	while(s)	{
@@ -358,9 +396,9 @@ struct ini_section *ini_find_section(struct ini_file *inf, char* name)
 }
 
 /* Search through a section for a value */
-char *ini_get_section_value(struct ini_section *s, char *key)
+char *ini_get_section_value(struct ini_section *s, const char *key)
 {
-	struct kv_pair *k = s->items;
+	struct ini_kv_pair *k = s->items;
 	while(k)	{
 		if(strcmp(k->key, key) == 0)	{
 			return k->value;
