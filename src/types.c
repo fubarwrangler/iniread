@@ -45,6 +45,22 @@ static int to_int(const char *str, int *err)
 	return (int)n;
 }
 
+static float to_float(const char *str, int *err)
+{
+	float f;
+	char *p;
+
+	errno = 0;
+	f = strtof(str, &p);
+	if(errno != 0 || *p != '\0')	{
+		*err = INI_NOTFLOAT;
+		return 0;
+	}
+
+	return f;
+
+}
+
 
 bool ini_get_bool(struct ini_file *inf,
 				  const char *section,
@@ -82,4 +98,24 @@ int ini_get_section_int(struct ini_section *s, const char *key, int *err)
 	}
 	*err = INI_OK;
 	return to_int(p, err);
+}
+
+
+float ini_get_float(struct ini_file *inf,
+				  const char *section,
+				  const char *key,
+				  int *err)
+{
+	return to_float(ini_get_value(inf, section, key, err), err);
+}
+
+float ini_get_section_float(struct ini_section *s, const char *key, int *err)
+{
+	char *p = ini_get_section_value(s, key);
+	if(p == NULL)	{
+		*err = INI_NOKEY;
+		return 0;
+	}
+	*err = INI_OK;
+	return to_float(p, err);
 }

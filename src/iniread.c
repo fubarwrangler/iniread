@@ -285,8 +285,6 @@ char *ini_read_value(char *fname, char *section, char *key, int *e)
 					value = strdup(p);
 					if(value == NULL)
 						*e = INI_NOMEM;
-					//else
-						//puts(*value);
 					*e = INI_OK;
 					break;
 				}
@@ -308,10 +306,8 @@ int ini_read_file(const char *fname, struct ini_file **inf)
 
 	*inf = NULL;
 
-	if((fp = fopen(fname, "r")) == NULL)	{
-		perror("ini_read_file");
+	if((fp = fopen(fname, "r")) == NULL)
 		return INI_NOFILE;
-	}
 
 	*inf = ini_read_stream(fp, &err);
 

@@ -36,8 +36,8 @@
 #define INI_NOMEM		5
 #define INI_NOTBOOL		6
 #define INI_NOTINT		7
-#define INI_NOTFLOAT	9
-#define INI_PARSEERROR	10
+#define INI_NOTFLOAT	8
+#define INI_PARSEERROR	9
 
 extern char *ini_errors[];
 
