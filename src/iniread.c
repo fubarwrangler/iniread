@@ -5,6 +5,7 @@
 #include <errno.h>
 
 #include "iniread.h"
+#include "readline.h"
 
 char *ini_errors[] = {	"Everything OK",
 						"Section not found",
@@ -34,7 +35,7 @@ static int get_nend(const char *str, char *accept)
 }
 
 /* Strip leading whitespace, return 0 for comments or blank, 1 otherwise */
-static int filter_line(char *raw, size_t len, int *removed)
+static int filter_line(char *raw, size_t len)
 {
 	size_t l_white = 0;
 
@@ -46,7 +47,6 @@ static int filter_line(char *raw, size_t len, int *removed)
 		if(l_white > 0)
 			memmove(raw, (raw + l_white), len - l_white);
 	}
-	*removed = (int)l_white;
 	/* Skip comments and blank lines */
 	return (*raw == '#' || *raw == ';' || len < l_white + 2) ? 0 : 1;
 }
@@ -167,7 +167,6 @@ char *ini_readline(FILE *fp, int *err)	{
 				break;
 			case READLINE_MEM_ERR:
 				*err = INI_NOMEM;
-				free(real_line);
 				return NULL;
 			case READLINE_IO_ERR:
 			case READLINE_FILE_ERR:

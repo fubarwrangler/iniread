@@ -20,8 +20,6 @@ char *_readl_err_map[] = {
 	"readline: BUG! Invalid error num",
 };
 
-// #define _READLINE_DEBUG
-
 /* resize() -- realloc a string to a new size safely
  *	@buf, @new -- buffer to realloc / new size
  *
@@ -32,9 +30,7 @@ char *_readl_err_map[] = {
 static char *resize(char *buf, size_t new)
 {
 	char *tmp = realloc(buf, new);
-#ifdef _READLINE_DEBUG
-	fprintf(stderr, "---Resize to %d\n", (int)new);
-#endif
+
 	if(tmp == NULL)	{
 		_readl_error = READLINE_MEM_ERR;
 		free(buf);

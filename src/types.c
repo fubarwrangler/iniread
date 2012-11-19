@@ -8,8 +8,6 @@
 
 #include "iniread.h"
 
-
-
 static bool to_bool(const char *str, int *err)
 {
 	bool rv = false;
