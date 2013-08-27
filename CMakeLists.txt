@@ -1,6 +1,8 @@
 
 cmake_minimum_required(VERSION 2.6)
 
+add_definitions("-std=c99 -Wall -Wpedantic")
+
 project(Iniread)
 
 include_directories(include)
@@ -14,4 +16,4 @@ add_subdirectory(tests)
 install ( FILES "include/iniread.h"
           DESTINATION include
         )
-set(CMAKE_C_FLAGS -Wall -std=c99 -Wpedantic)
+
