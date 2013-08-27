@@ -13,32 +13,43 @@ char *ini_errors[] = {	"Everything OK",
 						"Unable to open file",
 						"I/O error occured",
 						"Error allocating memory",
+						"Variable not interpretable as boolean",
+						"Variable not an integer",
+						"Variable not an float",
 						"Interpolation parse error",
 						"BUG: invalid error code"
 					 };
 
+/* Get number of contigous characters at the end of string all in @accept */
+static int get_nend(const char *str, char *accept)
+{
+	int n = 0;
 
-/* Strip leading whitespace + newline, return false for comments or blank */
-static int filter_line(char *raw)
+	while(*str != '\0')	{
+		if(strchr(accept, *str++) != NULL)
+			n++;
+		else
+			n = 0;
+	}
+	return n;
+}
+
+/* Strip leading whitespace, return 0 for comments or blank, 1 otherwise */
+static int filter_line(char *raw, size_t len)
 {
 	size_t l_white = 0;
-	size_t len = strlen(raw);
 
-    if(len > 1) {
+	if(len > 1)	{
 		/* How many whitespace chars start the string? */
 		l_white = strspn(raw, "\t ");
 
-        /* Move the non-whitespace part to the begenning of the string */
+		/* Move the non-whitespace part to the begenning of the string */
 		if(l_white > 0)
 			memmove(raw, (raw + l_white), len - l_white);
-
-		/* Strip off newline */
-		raw[len - l_white] = '\0';
-    }
+	}
 	/* Skip comments and blank lines */
-	return !(*raw == '#' || *raw == ';' || len < l_white + 2);
+	return (*raw == '#' || *raw == ';' || len < l_white + 2) ? 0 : 1;
 }
-
 
 
 /* If the line is a valid "[section]", modify *str by reterminating as
@@ -53,17 +64,18 @@ static char *get_section(char *str)
 
 	/* Must start w/ [, end w/ ], and have something between */
 	if(*p == '[' && len > 2 && *(p + len - 1) == ']')	{
-		size_t start, stop;
+		size_t start, stop, end_count;
 		p++;
 
 		/* start is index(non-white), stop is index(last non-white) */
-		start = strspn(p, " \t");
-		stop = start + strcspn((p + start), "]") - 1;
-        while(*(p + stop) == ' ' || *(p + stop) == '\t')
-            stop--;
+		start = strspn(p, " \t") + 1;
+		stop = start + strcspn((p + start), "]");
 
-		*(p + stop + 1) = '\0';
-		p += start;
+		while(strchr(" \t", *(p + stop - 1)))
+			stop--;
+
+		*(p + stop) = '\0';
+		p += start - 1;
 
 		/* If p is at ']' now, we didn't get any non-whitespace chars */
 		return p;
@@ -118,38 +130,39 @@ static int get_key_value(char *str, char **key, char **value)
 	return 0;
 }
 
-static char *ini_readline(FILE *fp, int *err)	{
+char *ini_readline(FILE *fp, int *err)	{
 	size_t len;
 	char *buf;
 
-	buf = readline_continue_fp(fp, &len);
+	do {
+		buf = readline_continue_fp(fp, &len);
 
-	switch(readline_error())	{
-		case READLINE_OK:
-			return buf;
-		case READLINE_MEM_ERR:
-			*err = INI_NOMEM;
-			break;
-		case READLINE_IO_ERR:
-		case READLINE_FILE_ERR:
-			*err = INI_IOERROR;
-			break;
-		default:
-			abort();
-	}
+		switch(readline_error())	{
+			case READLINE_OK:
+				break;
+			case READLINE_MEM_ERR:
+				*err = INI_NOMEM;
+				return NULL;
+			case READLINE_IO_ERR:
+			case READLINE_FILE_ERR:
+				*err = INI_IOERROR;
+				return NULL;
+			default:
+				abort();
+		}
+	} while(buf != NULL && filter_line(buf, len) == 0);
 
-	return NULL;
+	return buf;
 }
 
 int ini_read_file(char *fname, struct ini_file **inf)
 {
-	FILE *fp = NULL;
 	int err;
+	FILE *fp;
 
 	*inf = NULL;
 
-	if((fp = fopen(fname, "r")) == NULL)	{
-		perror("ini_read_file");
+	if((fp = fopen(fname, "r")) == NULL)
 		return INI_NOFILE;
 	}
 
@@ -205,6 +218,7 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 				fputs("Error allocating memory", stderr);
 				free(line);
 				ini_free_data(inidata);
+				*err = INI_NOMEM;
 				return NULL;
 			}
 		} else if (sp != NULL) {
@@ -216,6 +230,7 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 					free(val);
 					fputs("Error allocating memory", stderr);
 					ini_free_data(inidata);
+					*err = INI_NOMEM;
 					return NULL;
 				}
 			}
@@ -224,6 +239,8 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 	*err = INI_OK;
 	return inidata;
 }
+
+//#define INI_DEBUG
 
 /* Destroy all sections, keys, and values in *inf structure */
 void ini_free_data(struct ini_file *inf)

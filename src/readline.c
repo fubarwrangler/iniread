@@ -20,8 +20,6 @@ char *_readl_err_map[] = {
 	"readline: BUG! Invalid error num",
 };
 
-// #define _READLINE_DEBUG
-
 /* resize() -- realloc a string to a new size safely
  *	@buf, @new -- buffer to realloc / new size
  *
@@ -29,12 +27,10 @@ char *_readl_err_map[] = {
  *
  * Returns: pointer to new resized buffer or NULL on error
  */
-static char *resize(char *buf, size_t new_size)
+static char *resize(char *buf, size_t new)
 {
-	char *tmp = realloc(buf, new_size);
-#ifdef _READLINE_DEBUG
-	fprintf(stderr, "---Resize to %d\n", (int)new_size);
-#endif
+	char *tmp = realloc(buf, new);
+
 	if(tmp == NULL)	{
 		_readl_error = READLINE_MEM_ERR;
 		free(buf);
@@ -100,6 +96,25 @@ char *readline_fp(FILE *fp, size_t *slen)
 	return NULL;
 }
 
+static char *readline_skel_fopen(const char *fname, size_t *slen,
+								 char *(read_fn)(FILE *, size_t *))
+{
+	static FILE *fp = NULL;
+	char *storage;
+
+	if(fp == NULL)	{
+		if((fp = fopen(fname, "r")) == NULL)	{
+			_readl_error = READLINE_FILE_ERR;
+			return NULL;
+		}
+	}
+	storage = read_fn(fp, slen);
+	if(storage == NULL)
+		fclose(fp);
+	return storage;
+}
+
+
 /* get_nend() -- count the occurrences of character @c at the end of @str
  *	@str / @c - string to search through / character to search for
  * Returns: count how many c's are at end of str
@@ -118,12 +133,12 @@ static size_t get_nend(char *str, char c)
 }
 
 
-char *readline_continue(FILE *fp, size_t *slen)
+char *readline_continue_fp(FILE *fp, size_t *slen)
 {
 	char *buf = NULL;
+	static size_t buf_s = 0;
 	static char *new_storage = NULL;
 	size_t len = 0, old_len = 0;
-	static FILE *fp = NULL;
 
 	_readl_strip = 1;
 
@@ -158,4 +173,15 @@ char *readline_continue(FILE *fp, size_t *slen)
 	}
 	free(new_storage);
 	return NULL;
+}
+
+
+char *readline(const char *fname, size_t *slen)
+{
+	return readline_skel_fopen(fname, slen, readline_fp);
+}
+
+char *readline_continue(const char *fname, size_t *slen)
+{
+	return readline_skel_fopen(fname, slen, readline_continue_fp);
 }
