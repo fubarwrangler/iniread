@@ -164,14 +164,12 @@ int ini_read_file(char *fname, struct ini_file **inf)
 
 	if((fp = fopen(fname, "r")) == NULL)
 		return INI_NOFILE;
-	}
 
 	*inf = ini_read_stream(fp, &err);
 
 	fclose(fp);
 	return err;
 }
-
 
 /* Read from stdio stream *fp ini-file data into a newly created ini-file
  * structure.  The sections are held in a linked list off the main struct
@@ -261,7 +259,10 @@ void ini_free_data(struct ini_file *inf)
 }
 
 /* In a given ini_file, search *section for *key and return the value */
-char *ini_get_value(struct ini_file *inf, char *section, char *key, int *err)
+char *ini_get_value(struct ini_file *inf,
+					const char *section,
+					const char *key,
+					int *err)
 {
 	struct ini_section *s;
 
@@ -277,7 +278,7 @@ char *ini_get_value(struct ini_file *inf, char *section, char *key, int *err)
 }
 
 /* Return the section from the *ini named *name */
-struct ini_section *ini_find_section(struct ini_file *inf, char* name)
+struct ini_section *ini_find_section(struct ini_file *inf, const char *name)
 {
 	if(inf != NULL)
 		return hash_get(inf->sections, name);
@@ -286,7 +287,7 @@ struct ini_section *ini_find_section(struct ini_file *inf, char* name)
 }
 
 /* Search through a section for a value */
-char *ini_get_section_value(struct ini_section *s, char *key)
+char *ini_get_section_value(struct ini_section *s, const char *key)
 {
 	if(s != NULL)
 		return hash_get(s->items, key);

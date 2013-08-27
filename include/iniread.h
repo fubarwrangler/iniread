@@ -28,6 +28,7 @@
 #ifndef INIREAD_H__
 #define INIREAD_H__
 
+#include <stdbool.h>
 #include "hash.h"
 
 #define INI_OK			0
@@ -55,6 +56,7 @@ struct ini_file {
 struct ini_section	{
 	hash_table *items;
 };
+
 
 /* ini_read_file() -- read an ini-formatted config file into an ini-file-structure
  * 	@fname:	filename to open and read
@@ -145,7 +147,5 @@ float ini_get_section_float(struct ini_section *s, const char *key, int *err);
  *	INI_NOMEM		Memory for the found buffer not found
  */
 char *ini_read_value(char *fname, char *section, char *key, int *e);
-
-int ini_interpolate(struct ini_file *ini);
 
 #endif

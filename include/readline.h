@@ -38,10 +38,10 @@ extern char *_readl_err_map[];
 #define readline_unset_strip()	_readl_strip = 0
 
 
-/** readline_continue() -- read a file a line at a time, safe for very long
- *                         lines, will only stop when it runs out of memory
+/** readline() -- read a file a line at a time, safe for very long lines, will
+ *                only stop when it runs out of memory
  *
- *  @fp:   open FILE object ready for reading
+ *  @filename: the file to open and iterate through
  *  @slen: address to write the length of the current line to (it's computed
  *         by this function anyway so why waste it?)
  *
@@ -52,12 +52,6 @@ extern char *_readl_err_map[];
  * halving it after reading a configurable number of short-enough lines.
  * The function will keep reading until it hits a '\n', so be careful if you
  * are worried about memory. Uses repeated calls to fgets() under the hood.
- *
- * An odd number of trailing backslashes signals this function to read the
- * next line and append it to the end of the current one.  Multiple
- * backslashes are treated as escaped so an even number will be turned into
- * n / 2 real ones and not continue the line.  Odd numbers are turned into
- * (n - 1) / 2 real backslashes and do continue the line.
  *
  * Returns: temporary buffer holding the current line, NULL on EOF or error
  *          On error, readline_error() returns true and readline_errstr()
@@ -70,11 +64,31 @@ extern char *_readl_err_map[];
  *    n_skip_shrink: how many short-enough lines (lines half as long as the
  *                   current buffer size or smaller) in a row to read before
  *                   re-allocing a buffer half as large -- default is 4
+ */
+char *readline(const char *fname, size_t *slen);
+
+/** readline_fp() -- same as readline but iterates over an already-opened file
+ */
+char *readline_fp(FILE *fp, size_t *slen);
+
+
+/** readline_continue() -- read a line from a file but take a backslash at the
+ *                         end as meaning to append the next line to the end
+ *
+ *	@args -- same as for readline()
+ *
+ * An odd number of trailing backslashes signals this function to read the
+ * next line and append it to the end of the current one.  Multiple
+ * backslashes are treated as escaped so an even number will be turned into
+ * n / 2 real ones and not continue the line.  Odd numbers are turned into
+ * (n - 1) / 2 real backslashes and do continue the line.
  *
  * Returns: pointer to statically allocated buffer holding finished line
  *
  */
-char *readline_continue(const FILE *fp, size_t *slen);
+char *readline_continue(const char *fname, size_t *slen);
+
+char *readline_continue_fp(FILE *fp, size_t *slen);
 
 
 #endif
