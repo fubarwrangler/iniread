@@ -261,19 +261,20 @@ int hash_resize(hash_table *h, size_t newsize)
 
 void hash_iter_init(hash_table *h, hash_iter *state)
 {
+	state->ht = h;
 	state->idx = 0;
 	state->bucket = h->buckets[0];
 }
 
 
-int hash_iterate(hash_table *h, hash_iter *state, void **key, void **val)
+int hash_iterate(hash_iter *state, void **key, void **val)
 {
 	if(state->bucket != NULL && state->bucket->next != NULL)	{
 		state->bucket = state->bucket->next;
 	} else {
-		while(++(state->idx) <= h->size)	{
-			if(h->buckets[state->idx - 1] != NULL)	{
-				state->bucket = h->buckets[state->idx - 1];
+		while(++(state->idx) <= state->ht->size)	{
+			if(state->ht->buckets[state->idx - 1] != NULL)	{
+				state->bucket = state->ht->buckets[state->idx - 1];
 				goto found;
 			}
 		}

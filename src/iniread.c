@@ -244,12 +244,12 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 void ini_free_data(struct ini_file *inf)
 {
 	struct ini_section *s;
-	char *name;
+	void *key;
 	hash_iter ctx;
 
 	hash_iter_init(inf->sections, &ctx);
 
-	while(hash_iterate(inf->sections, &ctx, &name, &s))	{
+	while(hash_iterate(&ctx, &key, (void **)&s))	{
 		hash_destroy(s->items);
 		free(s);
 	}

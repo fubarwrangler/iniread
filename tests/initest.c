@@ -3,16 +3,17 @@
 
 void dump_ini(struct ini_file *ini)
 {
-	struct ini_section *s = ini->first;
-	while(s)	{
-		struct ini_kv_pair *kv = s->items;
-		printf("Section '%s':\n", s->name);
-		while(kv)	{
-			printf("'%s': '%s'\n", kv->key, kv->value);
-			kv = kv->next;
+	hash_iter ictx, sctx;
+	struct ini_section *sec;
+	char *secname, *key, *val;
+
+	hash_iter_init(ini->sections, &ictx);
+	while(hash_iterate(&ictx, (void **)&secname, (void **)&sec))	{
+		printf("Section '%s':\n", secname);
+		hash_iter_init(sec->items, &sctx);
+		while(hash_iterate(&sctx, (void **)&key, (void **)&val))	{
+			printf("%s: %s\n", key, val);
 		}
-		printf("\n");
-		s = s->next;
 	}
 }
 
