@@ -32,20 +32,33 @@ void print_hash(hash_table *h, hash_printer hp)
 	}
 }
 
+static int cmpstringp(const void *p1, const void *p2)
+{
+	return strcmp(* (char * const *) p1, * (char * const *) p2);
+}
+
 void print_hash1(hash_table *h, const char *title, hash_printer hp)
 {
-	hash_iter ctx;
-	char *k;
-	void *v;
-	
+	char **p, **q;
+	int i = 0;
+
 	printf("%s\n", title);
 	for(int i=0; i<strlen(title); i++)
 		putchar('=');
 	putchar('\n');
-	hash_iter_init(h, &ctx);
-	for(int i = 0; hash_iterate(&ctx, &k, &v); i++)	{
-		printf("%3d) %s: %s\n", i, k, (*hp)(v));
+
+	p = hash_get_keys(h);
+	qsort(&p[0], h->nelm, sizeof(char *), cmpstringp);
+	q = p;
+	while(*q)	{
+		printf("%3d) %s: %s\n", i++, *q, (*hp)(hash_get(h, *q)));
+		q++;
 	}
+
+	q = p;
+	while(*q)
+		free(*q++);
+	free(p);
 }
 
 struct dual_value {
@@ -64,15 +77,21 @@ char *hp_val(void *d)	{
 	return cb;
 }
 
+void freedv(void *p)
+{
+	struct dual_value *dv = (struct dual_value *)p;
+	free(dv);
+}
 
 int ini_compare(struct ini_section *s1, struct ini_section *s2)
 {
 	struct dual_value *dv;
 	char *key, *v1, *v2;
+	char **p, **q;
 	hash_iter ctx;
-	
+
 	hash_table *first, *second, *same, *diff;
-	
+
 	first = hash_init(NULL, s1->items->size);
 	second = hash_init(NULL, s2->items->size);
 	same = hash_init(NULL, (s1->items->size + s2->items->size) / 2);
@@ -103,9 +122,8 @@ int ini_compare(struct ini_section *s1, struct ini_section *s2)
 	while(hash_iterate(&ctx, (void **)&key, (void **)&v2))
 		if(!hash_get(same, key) && !hash_get(diff, key))
 			hash_insert(second, key, v2);
-		
-		
-	
+
+
 	print_hash1(first, "First Only", hp_simple);
 	print_hash1(second, "Second Only", hp_simple);
 	print_hash1(same, "Common Fields", hp_simple);
@@ -115,7 +133,7 @@ int ini_compare(struct ini_section *s1, struct ini_section *s2)
 	hash_destroy(first);
 	hash_destroy(second);
 	hash_destroy(same);
-	hash_destroy(diff);
+	hash_destroy_callback(diff, freedv);
 	
 	return 0;
 }

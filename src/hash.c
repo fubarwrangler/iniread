@@ -266,6 +266,25 @@ void hash_iter_init(hash_table *h, hash_iter *state)
 	state->bucket = h->buckets[0];
 }
 
+char **hash_get_keys(hash_table *h)
+{
+	hash_iter ctx;
+	char **klist;
+	char *k;
+	void *v;
+	int i = 0
+
+	klist = malloc(sizeof(char *) * (h->nelm + 1));
+
+	hash_iter_init(h, &ctx);
+	while(hash_iterate(&ctx, &k, &v))	{
+		klist[i++] = strdup(k);
+	}
+	klist[i] = NULL;
+	return klist;
+}
+
+
 
 int hash_iterate(hash_iter *state, void **key, void **val)
 {

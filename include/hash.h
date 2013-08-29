@@ -150,5 +150,13 @@ void hash_iter_init(hash_table *h, hash_iter *state);
  */
 int hash_iterate(hash_iter *state, void **key, void **val);
 
+/**
+ * hash_get_keys() -- return an array of pointers to strings of all keys in hash
+ *  @h -- table to get keys from
+ *
+ * Returns: pointer to list of duplicated key strings
+ */
+char **hash_get_keys(hash_table *h);
+
 
 #endif /* HASH_H__ */

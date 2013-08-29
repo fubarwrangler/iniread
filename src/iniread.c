@@ -165,7 +165,8 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 {
 	struct ini_file *inidata = NULL;
 	struct ini_section *sp = NULL;
-	char *line = NULL, *p;
+	int first_sec_found = 0;
+	char *line = NULL;
 
 	*err = INI_NOMEM;
 
@@ -177,8 +178,10 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 	hash_set_autogrow(inidata->sections, 0.8, 1.6);
 
 	while((line = ini_readline(fp, err)) != NULL)	{
+		char *p;
 
-		if((p = get_section(line)) != NULL)	{
+		if((p = get_section(line)) != NULL || first_sec_found == 0)	{
+			first_sec_found = 1;
 			if((sp = malloc(sizeof(struct ini_section))) != NULL)	{
 
 				if((sp->items = hash_init(NULL, 10)) == NULL)	{
@@ -190,7 +193,7 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 				hash_set_autogrow(sp->items, 0.8, 1.6);
 				hash_set_autofree(sp->items);
 
-				if(hash_insert(inidata->sections, p, sp) != 0)	{
+				if(hash_insert(inidata->sections, (p != NULL) ? p : "", sp) != 0)	{
 					free(line);
 					fputs("Error allocating memory", stderr);
 					return NULL;
