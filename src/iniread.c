@@ -20,20 +20,6 @@ char *ini_errors[] = {	"Everything OK",
 						"BUG: invalid error code"
 					 };
 
-/* Get number of contigous characters at the end of string all in @accept */
-static int get_nend(const char *str, char *accept)
-{
-	int n = 0;
-
-	while(*str != '\0')	{
-		if(strchr(accept, *str++) != NULL)
-			n++;
-		else
-			n = 0;
-	}
-	return n;
-}
-
 /* Strip leading whitespace, return 0 for comments or blank, 1 otherwise */
 static int filter_line(char *raw, size_t len)
 {
@@ -64,7 +50,7 @@ static char *get_section(char *str)
 
 	/* Must start w/ [, end w/ ], and have something between */
 	if(*p == '[' && len > 2 && *(p + len - 1) == ']')	{
-		size_t start, stop, end_count;
+		size_t start, stop;
 		p++;
 
 		/* start is index(non-white), stop is index(last non-white) */
@@ -155,7 +141,7 @@ char *ini_readline(FILE *fp, int *err)	{
 	return buf;
 }
 
-int ini_read_file(char *fname, struct ini_file **inf)
+int ini_read_file(const char *fname, struct ini_file **inf)
 {
 	int err;
 	FILE *fp;
@@ -191,9 +177,6 @@ struct ini_file *ini_read_stream(FILE *fp, int *err)
 	hash_set_autogrow(inidata->sections, 0.8, 1.6);
 
 	while((line = ini_readline(fp, err)) != NULL)	{
-
-		if(filter_line(line) == 0)
-			continue;
 
 		if((p = get_section(line)) != NULL)	{
 			if((sp = malloc(sizeof(struct ini_section))) != NULL)	{

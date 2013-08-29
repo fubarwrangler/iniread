@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
 		int err = INI_OK;
 		dump_ini(ini);
 		printf("[%s] %s = '%d'\n", argv[2], argv[3],
-			   ini_get_bool(ini, argv[2], argv[3], &err)
+			   ini_get_int(ini, argv[2], argv[3], &err)
 			  );
 		puts(ini_error_string(err));
 		ini_free_data(ini);

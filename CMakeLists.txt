@@ -1,7 +1,7 @@
 
 cmake_minimum_required(VERSION 2.6)
 
-add_definitions("-std=c99 -Wall -Wpedantic")
+add_definitions("-std=c99 -Wall -Wpedantic -D_POSIX_C_SOURCE=200809L")
 
 project(Iniread)
 

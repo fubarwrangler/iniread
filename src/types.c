@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <strings.h>
 #include <ctype.h>
 #include <limits.h>
 #include <errno.h>
@@ -33,6 +34,9 @@ static int to_int(const char *str, int *err)
 	long int n;
 	char *p;
 
+	if(str == NULL)
+		return 0;
+
 	errno = 0;
 	n = strtol(str, &p, 10);
 	if(errno != 0 || *p != '\0' || n > INT_MAX)	{
@@ -47,6 +51,11 @@ static float to_float(const char *str, int *err)
 {
 	float f;
 	char *p;
+
+	if(str == NULL)	{
+		*err = INI_NOSECTION;
+		return 0;
+	}
 
 	errno = 0;
 	f = strtof(str, &p);
