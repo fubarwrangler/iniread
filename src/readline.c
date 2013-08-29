@@ -93,6 +93,7 @@ char *readline_fp(FILE *fp, size_t *slen)
 	if(!feof(fp))
 		_readl_error = READLINE_IO_ERR;
 	free(buf);
+	buf = NULL;
 	return NULL;
 }
 
@@ -136,7 +137,6 @@ static size_t get_nend(char *str, char c)
 char *readline_continue_fp(FILE *fp, size_t *slen)
 {
 	char *buf = NULL;
-	static size_t buf_s = 0;
 	static char *new_storage = NULL;
 	size_t len = 0, old_len = 0;
 
@@ -172,6 +172,7 @@ char *readline_continue_fp(FILE *fp, size_t *slen)
 		*slen = len + old_len;
 	}
 	free(new_storage);
+	new_storage = NULL;
 	return NULL;
 }
 
